@@ -1,0 +1,20 @@
+{
+	"alert": {
+		"type": "slack",
+		"webhookurl": "https://hooks.slack.com/services/T3Sb6EXAMPLE"
+	},
+	"traps": {
+		"v1/get-pass": {
+			"token1": {
+				"qstring": "user",
+				"param": "jack",
+				"note": "token is embedded in secret.doc"
+			},
+			"token2": {
+				"qstring": "page",
+				"param": "2",
+				"note": "hidden link in login page"
+			}
+		}
+	}
+}

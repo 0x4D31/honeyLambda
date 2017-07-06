@@ -1,0 +1,18 @@
+service: honeyLambda
+
+provider:
+  name: aws
+  runtime: python2.7
+
+# you can overwrite defaults here
+  stage: dev
+  region: ap-southeast-2
+
+functions:
+  honeylambda:
+    handler: handler.honeylambda
+    memorySize: 128
+    events:
+      - http:
+          path: v1/get-pass
+          method: get
