@@ -8,6 +8,7 @@ Serverless trap
 honeyλ - a simple serverless application designed to create and monitor URL [{honey}tokens](https://www.symantec.com/connect/articles/honeytokens-other-honeypot), on top of AWS Lambda and Amazon API Gateway
 * Slack notifications
 * Load config from local file or Amazon S3
+* Customize the HTTP response
 * Based on Serverless framework
   * pay-what-you-use
   * provider agnostic
@@ -69,7 +70,8 @@ Open the generated URL/endpoint in your browser to test if it works:
 ![honeyLambda](https://github.com/0x4D31/honeyLambda/blob/master/docs/slack-alert.png)
 
 ## TODO
-- [ ] Load config from Amazon S3
+- [x] Remote config: load config from Amazon S3
+- [ ] beacon image / return image as HTTP response 
 - [ ] Insert BeEF hook.js into the response
 - [ ] Check the source IP address against Threat Intelligence feeds (e.g. Cymon API)
 - [ ] Ability to send a different HTTP response for each endpoint
