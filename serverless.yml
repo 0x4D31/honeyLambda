@@ -1,18 +1,37 @@
+# serverless.yml
+
 service: honeyLambda
 
 provider:
   name: aws
   runtime: python2.7
-
-# you can overwrite defaults here
   stage: dev
   region: ap-southeast-2
+  memorySize: 128
+  ## Lambda function permissions
+  ## S3 permissions are needed when you want to load the config from S3, or store the logs to S3
+  ## You can set permission policy statements:
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+      Resource: "arn:aws:s3:::yours3bucket"
+  ## OR you can overwrite the default IAM role and use an existing one:
+  #role: arn:aws:iam::YourAccountNumber:role/YourIamRole
 
 functions:
   honeylambda:
     handler: handler.honeylambda
-    memorySize: 128
+    ## Function level environment variable
+    environment:
+      ## Load configuration from 'local' file or 's3' bucket
+      configFile: s3
+      ## Specify the S3 bucket to load the config file from
+      ## Make sure your bucket is in the same region as Lambda function
+      s3Bucket: yours3bucket
+      s3Key: honeyLambda/config.json
     events:
       - http:
           path: v1/get-pass
           method: get
+
