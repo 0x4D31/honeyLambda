@@ -1,6 +1,6 @@
 # serverless.yml
 
-service: honeyLambda
+service: trap
 
 provider:
   name: aws
@@ -14,8 +14,9 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - s3:GetObject
-      Resource: "arn:aws:s3:::yours3bucket"
+        - s3:Get*
+        - s3:List*
+      Resource: "*"
   ## OR you can overwrite the default IAM role and use an existing one:
   #role: arn:aws:iam::YourAccountNumber:role/YourIamRole
 
