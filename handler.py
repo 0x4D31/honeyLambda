@@ -16,6 +16,31 @@ logger.setLevel(logging.INFO)
 
 
 def honeylambda(event, context):
+    # Load config file
+    config = load_config()
+
+    # Preparing alert message
+    alertMessage = alert_msg(event, config)
+    # Slack alert
+    if config['alert']['type'] == "slack":
+        webhookURL = config['alert']['webhookurl']
+        slack_alerter(alertMessage, webhookURL)
+
+    # Preparing HTTP response
+    contentType, body = generate_http_response(config)
+    # Send HTTP response
+    response = {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": contentType
+        },
+        "body": body
+    }
+
+    return response
+
+
+def load_config():
     # Check the environment variable for config type (local/s3)
     CONFIGFILE = os.environ['configFile']
     # Load config from S3
@@ -26,38 +51,28 @@ def honeylambda(event, context):
         try:
             response = s3.get_object(Bucket=BUCKET, Key=KEY)
             data = response['Body'].read()
-            config = json.loads(data)
+            conf = json.loads(data)
             logger.info("Config file loaded from S3")
         except Exception as err:
             logger.error(err)
+            raise
     else:
         # Load config from local file
         with open('config.json') as config_file:
-            config = json.load(config_file)
+            conf = json.load(config_file)
             logger.info("Local config file loaded")
-    # Load html template
-    with open('template/initial.html') as template_file:
-        template = template_file.read()
 
-    # Preparing alert message
-    alertMessage = alert_msg(event, config)
+    return conf
 
-    # Slack alert
-    if config['alert']['type'] == "slack":
-        webhookURL = config['alert']['webhookurl']
-        slack_alerter(alertMessage, webhookURL)
 
-    # Send HTTP response
-    body = template
-    response = {
-        "statusCode": 200,
-        "headers": {
-            "Content-Type": "text/html"
-        },
-        "body": body
-    }
+def generate_http_response(conf):
+    # TODO: needs some changes to support image as response
+    ctype = conf['http-response']['content-type']
+    bpath = conf['http-response']['body']
+    with open(bpath) as bfile:
+        data = bfile.read()
 
-    return response
+    return ctype, data
 
 
 def alert_msg(e, conf):
@@ -81,18 +96,20 @@ def alert_msg(e, conf):
     # Search the config for the token note
     note = ""
     querystring = ""
-    for path in conf['traps']:
-        if path in trap:
-            for token in conf['traps'][path]:
-                qs = conf['traps'][path][token]['qstring']
-                param = conf['traps'][path][token]['param']
-                if qs in querystringDict and param == querystringDict[qs]:
-                    note = conf['traps'][path][token]['note']
-                    querystring = "{}={}".format(qs, param)
-                else:
-                    qs2 = (querystringDict.keys())[0]
-                    param2 = (querystringDict.values())[0]
-                    querystring = "{}={}".format(qs2, param2)
+    if querystringDict:
+        # TODO: clean the following code!!!
+        for path in conf['traps']:
+            if path in trap:
+                for token in conf['traps'][path]:
+                    qs = conf['traps'][path][token]['qstring']
+                    param = conf['traps'][path][token]['param']
+                    if qs in querystringDict and param == querystringDict[qs]:
+                        note = conf['traps'][path][token]['note']
+                        querystring = "{}={}".format(qs, param)
+                    else:
+                        qs2 = (querystringDict.keys())[0]
+                        param2 = (querystringDict.values())[0]
+                        querystring = "{}={}".format(qs2, param2)
     # message dictionary
     msg = {
         "token-note": note,
