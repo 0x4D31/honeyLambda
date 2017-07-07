@@ -5,6 +5,8 @@ import json
 import time
 import urllib2
 import logging
+import boto3
+import os
 
 __author__ = 'Adel "0x4d31" Ka'
 __version__ = '0.1'
@@ -14,9 +16,25 @@ logger.setLevel(logging.INFO)
 
 
 def honeylambda(event, context):
-    # Load config file
-    with open('config.json') as config_file:
-        config = json.load(config_file)
+    # Check the environment variable for config type (local/s3)
+    CONFIGFILE = os.environ['configFile']
+    # Load config from S3
+    if CONFIGFILE == "s3":
+        BUCKET = os.environ['s3Bucket']
+        KEY = os.environ['s3Key']
+        s3 = boto3.client('s3')
+        try:
+            response = s3.get_object(Bucket=BUCKET, Key=KEY)
+            data = response['Body'].read()
+            config = json.loads(data)
+            logger.info("Config file loaded from S3")
+        except Exception as err:
+            logger.error(err)
+    else:
+        # Load config from local file
+        with open('config.json') as config_file:
+            config = json.load(config_file)
+            logger.info("Local config file loaded")
     # Load html template
     with open('template/initial.html') as template_file:
         template = template_file.read()
@@ -170,6 +188,6 @@ def slack_alerter(msg, hookurl):
     except urllib2.HTTPError as err:
         logger.error("Request failed: {} {}".format(err.code, err.reason))
     except urllib2.URLError as err:
-        logger.error("Connection failed: {}", err.reason)
+        logger.error("Connection failed: {}".format(err.reason))
 
     return
