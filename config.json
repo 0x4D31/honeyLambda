@@ -3,6 +3,10 @@
 		"type": "slack",
 		"webhookurl": "https://hooks.slack.com/services/T3Sb6EXAMPLE"
 	},
+	"http-response": {
+		"content-type": "text/html",
+		"body": "static/poc.html"
+	},
 	"traps": {
 		"v1/get-pass": {
 			"token1": {
