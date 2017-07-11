@@ -3,20 +3,20 @@
 		"type": "slack",
 		"webhookurl": "https://hooks.slack.com/services/T3Sb6EXAMPLE"
 	},
-	"http-response": {
+	"default-http-response": {
 		"content-type": "text/html",
 		"body": "static/poc.html"
 	},
 	"traps": {
-		"v1/get-pass": {
-			"token1": {
-				"qstring": "user",
-				"param": "jack",
-				"note": "token is embedded in secret.doc"
+		"/v1/get-pass": {
+			"user=jack": {
+				"note": "token is embedded in secret.doc",
+				"http-response": {
+					"content-type": "image/png",
+					"body": "static/pixel.png"
+				}
 			},
-			"token2": {
-				"qstring": "page",
-				"param": "2",
+			"page=2": {
 				"note": "hidden link in login page"
 			}
 		}
