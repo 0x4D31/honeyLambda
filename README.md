@@ -1,4 +1,4 @@
-<img align="left" src="https://github.com/0x4D31/honeyLambda/blob/master/docs/honeyLambda-sm.png" width="240px">
+<img align="left" src="https://github.com/0x4D31/honeyLambda/blob/master/docs/honeyLambda-sm.png" width="250px">
 
 Serverless trap
 
@@ -64,10 +64,12 @@ functions:
 * __Note:__ If you want to return binary in HTTP response (e.g. Content-Type: image/png), you have to manually configure Binary Support using the Amazon API Gateway console (it's not yet possible to set binary media types automatically using serverless):
 
 Open the Amazon API Gateway console, add the binary media type __\*/\*__, and save.
-![binarysupport](https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-apigw-binarysupport.png)
+
+<img src="https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-apigw-binarysupport.png" width="800">
 
 Once done, you have to re-deploy the API to the dev stage
-![binarysupport](https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-api-redeploy.png)
+
+<img src="https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-api-redeploy.png" width="450">
 
 ## Usage
 Open the generated URL/endpoint in your browser to test if it works:
