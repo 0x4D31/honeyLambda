@@ -8,7 +8,7 @@ Serverless trap
 honeyλ - a simple serverless application designed to create and monitor URL [{honey}tokens](https://www.symantec.com/connect/articles/honeytokens-other-honeypot), on top of AWS Lambda and Amazon API Gateway
 * Slack notifications
 * Load config from local file or Amazon S3
-* Customize the HTTP response
+* Customize the HTTP response for each token
 * Based on Serverless framework
   * pay-what-you-use
   * provider agnostic
@@ -23,10 +23,10 @@ This application is based on [Serverless framework](https://serverless.com) and 
   * ```npm install -g serverless```
 * Install honeyλ:
   * ```serverless install --url https://github.com/0x4d31/honeyLambda```
-* Edit `serverless.yml` and set HTTP endpoint path (default: v1/get-pass)
+* Edit `serverless.yml` and set HTTP endpoint path (default: /v1/get-pass)
 * Edit `config.json` and fill in your Slack Webhook URL. Change the trap/token configs as you need
-* You can change the template (or the main function if it's needed) and customize the HTTP response
-  * For example you can send image in response and embed the token in decoy documents; Or you can inject BeEF hook.js into the page
+* You can customize the HTTP response for each token
+  * For example you can return a 1x1px beacon image in response and embed the token in your decoy documents or email (tracking pixel!)
 
 ## Deploy
 * Set up your [AWS Credentials](https://serverless.com/framework/docs/providers/aws/guide/credentials/)
@@ -61,6 +61,12 @@ functions:
   honeylambda: honeyLambda-dev-honeylambda
 ```
 
+*Note:* If you want to return binary in HTTP response (e.g. Content-Type: image/png), you have to manually configure Binary Support using the Amazon API Gateway console (it's not yet possible to set binary media types automatically using serverless):
+Open the Amazon API Gateway console, add the binary media type __\*/\*__, and save.
+![binarysupport](https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-apigw-binarysupport.png)
+Once done, you have to re-deploy the API to the dev stage
+![binarysupport](https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-api-redeploy.png)
+
 ## Usage
 Open the generated URL/endpoint in your browser to test if it works:
 
@@ -71,8 +77,6 @@ Open the generated URL/endpoint in your browser to test if it works:
 
 ## TODO
 - [x] Remote config: load config from Amazon S3
-- [ ] beacon image / return image as HTTP response 
-- [ ] Insert BeEF hook.js into the response
+- [x] Beacon image / return image as HTTP response 
+- [x] Customize the HTTP response for each token
 - [ ] Check the source IP address against Threat Intelligence feeds (e.g. Cymon API)
-- [ ] Ability to send a different HTTP response for each endpoint
-
