@@ -7,6 +7,7 @@ import urllib2
 import logging
 import boto3
 import os
+import base64
 
 __author__ = 'Adel "0x4d31" Ka'
 __version__ = '0.1'
@@ -26,16 +27,9 @@ def honeylambda(event, context):
         webhookURL = config['alert']['webhookurl']
         slack_alerter(alertMessage, webhookURL)
 
-    # Preparing HTTP response
-    contentType, body = generate_http_response(config)
-    # Send HTTP response
-    response = {
-        "statusCode": 200,
-        "headers": {
-            "Content-Type": contentType
-        },
-        "body": body
-    }
+    # Prepare and send HTTP response
+    response = generate_http_response(event, config)
+    logger.info("HTTP response sent")
 
     return response
 
@@ -65,63 +59,94 @@ def load_config():
     return conf
 
 
-def generate_http_response(conf):
-    # TODO: needs some changes to support image as response
-    ctype = conf['http-response']['content-type']
-    bpath = conf['http-response']['body']
-    with open(bpath) as bfile:
-        data = bfile.read()
+def generate_http_response(e, conf):
+    req_path = e['resource']
+    if e['queryStringParameters']:
+        q, p = e['queryStringParameters'].items()[0]
+        req_token = "{}={}".format(q, p)
+    else:
+        req_token = ""
+    con_type = conf['default-http-response']['content-type']
+    body_path = conf['default-http-response']['body']
 
-    return ctype, data
+    # Check if the token exists and has a custom http-response
+    if req_token in conf['traps'][req_path]:
+        if 'http-response' in conf['traps'][req_path][req_token]:
+            con_type = (conf['traps'][req_path][req_token]
+                        ['http-response']['content-type'])
+            body_path = (conf['traps'][req_path][req_token]
+                         ['http-response']['body'])
+
+    with open(body_path) as body_file:
+        data = body_file.read()
+
+    if "image/" in con_type:
+        res = {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": con_type
+            },
+            "body": base64.b64encode(data),
+            "isBase64Encoded": True
+        }
+    elif "text/" in con_type:
+        res = {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": con_type
+            },
+            "body": data,
+        }
+    else:
+        logger.error("{} Content-Type is not supported".format(con_type))
+        res = {
+            "statusCode": 200,
+            "body": ":-(",
+        }
+
+    return res
 
 
 def alert_msg(e, conf):
     # message fields
-    trap = e['resource']
-    fullPath = e['requestContext']['path']
+    path = e['resource']
+    full_path = e['requestContext']['path']
     host = e['headers']['Host']
-    querystringDict = e['queryStringParameters']
     body = e['body']
-    httpMethod = e['httpMethod']
-    sourceIp = e['requestContext']['identity']['sourceIp']
-    userAgent = e['headers']['User-Agent']
-    viewerCountry = e['headers']['CloudFront-Viewer-Country']
-    deviceDict = {
+    http_method = e['httpMethod']
+    source_ip = e['requestContext']['identity']['sourceIp']
+    user_agent = e['headers']['User-Agent']
+    viewer_country = e['headers']['CloudFront-Viewer-Country']
+    device_dict = {
         "Tablet": e['headers']['CloudFront-Is-Tablet-Viewer'],
         "Mobile": e['headers']['CloudFront-Is-Mobile-Viewer'],
         "Desktop": e['headers']['CloudFront-Is-Desktop-Viewer'],
         "SmartTV": e['headers']['CloudFront-Is-SmartTV-Viewer']
     }
-    viewerDevice = [dev for dev in deviceDict if deviceDict[dev] == "true"]
+    viewer_device = [dev for dev in device_dict if device_dict[dev] == "true"]
+    if e['queryStringParameters']:
+        q, p = e['queryStringParameters'].items()[0]
+        req_token = "{}={}".format(q, p)
+    else:
+        req_token = ""
     # Search the config for the token note
     note = ""
-    querystring = ""
-    if querystringDict:
-        # TODO: clean the following code!!!
-        for path in conf['traps']:
-            if path in trap:
-                for token in conf['traps'][path]:
-                    qs = conf['traps'][path][token]['qstring']
-                    param = conf['traps'][path][token]['param']
-                    if qs in querystringDict and param == querystringDict[qs]:
-                        note = conf['traps'][path][token]['note']
-                        querystring = "{}={}".format(qs, param)
-                    else:
-                        qs2 = (querystringDict.keys())[0]
-                        param2 = (querystringDict.values())[0]
-                        querystring = "{}={}".format(qs2, param2)
+    if req_token in conf['traps'][path]:
+        if 'note' in conf['traps'][path][req_token]:
+            note = conf['traps'][path][req_token]['note']
+
     # message dictionary
     msg = {
         "token-note": note,
-        "token-path": fullPath,
+        "path": full_path,
         "host": host,
-        "http-method": httpMethod,
-        "querystring": querystring,
+        "http-method": http_method,
+        "token": req_token,
         "body": body,
-        "source-ip": sourceIp,
-        "user-agent": userAgent,
-        "viewer-country": viewerCountry,
-        "viewer-device": viewerDevice[0]
+        "source-ip": source_ip,
+        "user-agent": user_agent,
+        "viewer-country": viewer_country,
+        "viewer-device": viewer_device[0]
     }
 
     return msg
@@ -163,7 +188,7 @@ def slack_alerter(msg, hookurl):
                     },
                     {
                         "title": "Token",
-                        "value": msg['token-path'],
+                        "value": msg['token'] if msg['token'] else "None",
                         "short": "true"
                     },
                     {
@@ -177,8 +202,8 @@ def slack_alerter(msg, hookurl):
                         "short": "true"
                     },
                     {
-                        "title": "QueryString",
-                        "value": msg['querystring'] if msg['querystring'] else "None",
+                        "title": "Path",
+                        "value": msg['path'],
                         "short": "true"
                     },
                     {
