@@ -1,24 +1,31 @@
 {
-	"alert": {
-		"type": "slack",
-		"webhookurl": "https://hooks.slack.com/services/T3Sb6EXAMPLE"
-	},
-	"default-http-response": {
-		"content-type": "text/html",
-		"body": "static/poc.html"
-	},
-	"traps": {
-		"/v1/get-pass": {
-			"user=jack": {
-				"note": "token is embedded in secret.doc",
-				"http-response": {
-					"content-type": "image/png",
-					"body": "static/pixel.png"
-				}
-			},
-			"page=2": {
-				"note": "hidden link in login page"
-			}
-		}
-	}
+    "default-http-response": {
+        "content-type": "text/html",
+        "body": "static/poc.html"
+    },
+    "traps": {
+	    "/v1/get-pass": {
+            "user=jack": {
+                "note": "token is embedded in secret.doc",
+                "http-response": {
+                    "content-type": "image/png",
+                    "body": "static/pixel.png"
+        	    }
+	        },
+	        "page=2": {
+	            "note": "hidden link in login page"
+            }
+	    }
+    },
+    "alert": {
+        "slack": {
+            "enabled": "true",
+            "webhook-url": "https://hooks.slack.com/services/T3Sb6EXAMPLE"
+        }
+    },
+    "threat-intel-lookup": {
+        "enabled": "true",
+        "cymon2-user": "",
+        "cymon2-pass": ""
+    }
 }
