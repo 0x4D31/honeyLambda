@@ -9,6 +9,8 @@ honeyλ - a simple serverless application designed to create and monitor URL [{h
 * Slack notifications
 * Load config from local file or Amazon S3
 * Customize the HTTP response for each token
+* Threat Intelligence report (Source IP lookup)
+  * Using Cymon API v2
 * Based on Serverless framework
   * pay-what-you-use
   * provider agnostic
@@ -77,10 +79,10 @@ Open the generated URL/endpoint in your browser to test if it works:
 ![honeyLambdaURL](https://github.com/0x4D31/honeyLambda/blob/master/docs/http-response.png)
 
 ## Slack Alert
-![honeyLambda](https://github.com/0x4D31/honeyLambda/blob/master/docs/slack-alert.png)
+![threatintel](https://github.com/0x4D31/honeyLambda/blob/master/docs/slack-alert_threatintel.png)
 
 ## TODO
 - [x] Remote config: load config from Amazon S3
 - [x] Beacon image / return image as HTTP response 
 - [x] Customize the HTTP response for each token
-- [ ] Check the source IP address against Threat Intelligence feeds (e.g. Cymon API)
+- [x] Check the source IP address against Threat Intelligence feeds (e.g. Cymon API)
