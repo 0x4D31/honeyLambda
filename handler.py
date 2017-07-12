@@ -17,15 +17,16 @@ logger.setLevel(logging.INFO)
 
 
 def honeylambda(event, context):
+    """ Main function """
     # Load config file
     config = load_config()
 
     # Preparing alert message
     alertMessage = alert_msg(event, config)
     # Slack alert
-    if config['alert']['type'] == "slack":
-        webhookURL = config['alert']['webhookurl']
-        slack_alerter(alertMessage, webhookURL)
+    if config['alert']['slack']['enabled'] == "true":
+        WEBHOOK_URL = config['alert']['slack']['webhook-url']
+        slack_alerter(alertMessage, WEBHOOK_URL)
 
     # Prepare and send HTTP response
     response = generate_http_response(event, config)
@@ -35,6 +36,7 @@ def honeylambda(event, context):
 
 
 def load_config():
+    """ Load the configuration from local file or Amazon S3 """
     # Check the environment variable for config type (local/s3)
     CONFIGFILE = os.environ['configFile']
     # Load config from S3
@@ -57,6 +59,61 @@ def load_config():
             logger.info("Local config file loaded")
 
     return conf
+
+
+def threat_intel_lookup(ip, cred):
+    """ Threat Intel lookup (source IP address) using Cymon v2 API """
+    CYMON_LOGIN_API = "https://api.cymon.io/v2/auth/login"
+    CYMON_SEARCHIP_API = "https://api.cymon.io/v2/ioc/search/ip/"
+    CYMON_URL = "https://app.cymon.io/search/ip/"
+    resp_dict = {}
+    # Anonymous IP lookup request (rate-limited)
+    lookup_req = urllib2.Request(
+        CYMON_SEARCHIP_API + ip,
+        headers={'Content-Type': 'application/json'}
+    )
+    # Authenticate if Cymon credential is provided
+    if cred:
+        auth_req = urllib2.Request(
+            CYMON_LOGIN_API,
+            data=json.dumps(cred),
+            headers={'Content-Type': 'application/json'}
+        )
+        try:
+            auth_resp = (urllib2.urlopen(auth_req)).read()
+            auth_token = (json.loads(auth_resp))['jwt']
+            lookup_req.add_header("Authorization", "Bearer {}".format(auth_token))
+            logger.info("Cymon JWT token received")
+        except urllib2.HTTPError as err:
+            logger.error("Cymon Auth request failed: {} {}".format(
+                err.code,
+                err.reason)
+            )
+        except urllib2.URLError as err:
+            logger.error("Cymon Auth connection failed: {}".format(err.reason))
+
+    # Send IP lookup request
+    try:
+        lookup_resp = (urllib2.urlopen(lookup_req)).read()
+        resp_dict = json.loads(lookup_resp)
+        logger.info("Cymon results received")
+    except urllib2.HTTPError as err:
+        logger.error("Cymon lookup request failed: {} {}".format(
+            err.code,
+            err.reason)
+        )
+    except urllib2.URLError as err:
+        logger.error("Cymon lookup connection failed: {}".format(err.reason))
+
+    # Prepare the result
+    if resp_dict:
+        if resp_dict['total'] != 0:
+            resp = ["- {} (tags: {})".format(h['title'], ', '.join(h['tags']))
+                    for h in resp_dict['hits']]
+            resp.append("+ More info: {}{}".format(CYMON_URL, ip))
+            return resp
+
+    return None
 
 
 def generate_http_response(e, conf):
@@ -116,7 +173,10 @@ def alert_msg(e, conf):
     http_method = e['httpMethod']
     source_ip = e['requestContext']['identity']['sourceIp']
     user_agent = e['headers']['User-Agent']
-    viewer_country = e['headers']['CloudFront-Viewer-Country']
+    if "CloudFront-Viewer-Country" in e['headers']:
+        viewer_country = e['headers']['CloudFront-Viewer-Country']
+    else:
+        viewer_country = "None"
     device_dict = {
         "Tablet": e['headers']['CloudFront-Is-Tablet-Viewer'],
         "Mobile": e['headers']['CloudFront-Is-Mobile-Viewer'],
@@ -124,16 +184,35 @@ def alert_msg(e, conf):
         "SmartTV": e['headers']['CloudFront-Is-SmartTV-Viewer']
     }
     viewer_device = [dev for dev in device_dict if device_dict[dev] == "true"]
+    viewer_details = "Country: {}, Device: {}".format(
+        viewer_country,
+        viewer_device[0])
     if e['queryStringParameters']:
         q, p = e['queryStringParameters'].items()[0]
         req_token = "{}={}".format(q, p)
     else:
-        req_token = ""
+        req_token = "None"
     # Search the config for the token note
-    note = ""
+    note = "None"
     if req_token in conf['traps'][path]:
         if 'note' in conf['traps'][path][req_token]:
             note = conf['traps'][path][req_token]['note']
+
+    # Threat Intel Lookup (Cymon v2)
+    threat_intel = "None"
+    if conf['threat-intel-lookup']['enabled'] == "true":
+        username = conf['threat-intel-lookup']['cymon2-user']
+        password = conf['threat-intel-lookup']['cymon2-user']
+        if username and password:
+            credential = {
+                "username": conf['threat-intel-lookup']['cymon2-user'],
+                "password": conf['threat-intel-lookup']['cymon2-pass']
+            }
+        else:
+            credential = None
+        lookup_result = threat_intel_lookup(source_ip, credential)
+        if lookup_result:
+            threat_intel = "\n".join(lookup_result)
 
     # message dictionary
     msg = {
@@ -145,14 +224,14 @@ def alert_msg(e, conf):
         "body": body,
         "source-ip": source_ip,
         "user-agent": user_agent,
-        "viewer-country": viewer_country,
-        "viewer-device": viewer_device[0]
+        "viewer-details": viewer_details,
+        "threat-intel": threat_intel
     }
 
     return msg
 
 
-def slack_alerter(msg, hookurl):
+def slack_alerter(msg, webhook_url):
     now = time.strftime('%a, %d %b %Y %H:%M:%S %Z', time.localtime())
     # Preparing Slack message
     slack_message = {
@@ -178,22 +257,26 @@ def slack_alerter(msg, hookurl):
                         "short": "true"
                     },
                     {
+                        "title": "Threat Intel Report",
+                        "value": msg['threat-intel'] if msg['threat-intel'] else "None",
+                    },
+                    {
                         "title": "User-Agent",
                         "value": msg['user-agent']
                     },
                     {
                         "title": "Token Note",
-                        "value": msg['token-note'] if msg['token-note'] else "None",
+                        "value": msg['token-note'],
                         "short": "true"
                     },
                     {
                         "title": "Token",
-                        "value": msg['token'] if msg['token'] else "None",
+                        "value": msg['token'],
                         "short": "true"
                     },
                     {
-                        "title": "Viewer Country & Device Type",
-                        "value": "{}, {}".format(msg['viewer-country'], msg['viewer-device']),
+                        "title": "Viewer Details",
+                        "value": msg['viewer-details'],
                         "short": "true"
                     },
                     {
@@ -221,11 +304,10 @@ def slack_alerter(msg, hookurl):
     }
 
     # Sending Slack message
-    req = urllib2.Request(hookurl, json.dumps(slack_message))
+    req = urllib2.Request(webhook_url, json.dumps(slack_message))
 
     try:
         resp = urllib2.urlopen(req)
-        resp.read()
         logger.info("Message posted to Slack")
     except urllib2.HTTPError as err:
         logger.error("Request failed: {} {}".format(err.code, err.reason))
