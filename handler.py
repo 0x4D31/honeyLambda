@@ -1,5 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+#
+# Copyright (C) 2017  Adel "0x4D31" Karimi
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import json
 import time
@@ -18,6 +33,7 @@ logger.setLevel(logging.INFO)
 
 def honeylambda(event, context):
     """ Main function """
+
     # Load config file
     config = load_config()
 
@@ -37,6 +53,7 @@ def honeylambda(event, context):
 
 def load_config():
     """ Load the configuration from local file or Amazon S3 """
+
     # Check the environment variable for config type (local/s3)
     CONFIGFILE = os.environ['configFile']
     # Load config from S3
@@ -63,6 +80,7 @@ def load_config():
 
 def threat_intel_lookup(ip, cred):
     """ Threat Intel lookup (source IP address) using Cymon v2 API """
+
     CYMON_LOGIN_API = "https://api.cymon.io/v2/auth/login"
     CYMON_SEARCHIP_API = "https://api.cymon.io/v2/ioc/search/ip/"
     CYMON_URL = "https://app.cymon.io/search/ip/"
@@ -117,12 +135,15 @@ def threat_intel_lookup(ip, cred):
 
 
 def generate_http_response(e, conf):
+    """ Generate HTTP response """
+
     req_path = e['resource']
     if e['queryStringParameters']:
         q, p = e['queryStringParameters'].items()[0]
         req_token = "{}={}".format(q, p)
     else:
         req_token = ""
+    # Load the default HTTP response
     con_type = conf['default-http-response']['content-type']
     body_path = conf['default-http-response']['body']
 
@@ -165,7 +186,9 @@ def generate_http_response(e, conf):
 
 
 def alert_msg(e, conf):
-    # message fields
+    """ Prepare alert message dictionary """
+
+    # Message fields
     path = e['resource']
     full_path = e['requestContext']['path']
     host = e['headers']['Host']
@@ -192,6 +215,7 @@ def alert_msg(e, conf):
         req_token = "{}={}".format(q, p)
     else:
         req_token = "None"
+
     # Search the config for the token note
     note = "None"
     if req_token in conf['traps'][path]:
@@ -202,11 +226,11 @@ def alert_msg(e, conf):
     threat_intel = "None"
     if conf['threat-intel-lookup']['enabled'] == "true":
         username = conf['threat-intel-lookup']['cymon2-user']
-        password = conf['threat-intel-lookup']['cymon2-user']
+        password = conf['threat-intel-lookup']['cymon2-pass']
         if username and password:
             credential = {
-                "username": conf['threat-intel-lookup']['cymon2-user'],
-                "password": conf['threat-intel-lookup']['cymon2-pass']
+                "username": username,
+                "password": password
             }
         else:
             credential = None
@@ -214,7 +238,7 @@ def alert_msg(e, conf):
         if lookup_result:
             threat_intel = "\n".join(lookup_result)
 
-    # message dictionary
+    # Message dictionary
     msg = {
         "token-note": note,
         "path": full_path,
@@ -232,6 +256,8 @@ def alert_msg(e, conf):
 
 
 def slack_alerter(msg, webhook_url):
+    """ Send Slack alert """
+
     now = time.strftime('%a, %d %b %Y %H:%M:%S %Z', time.localtime())
     # Preparing Slack message
     slack_message = {
@@ -244,7 +270,7 @@ def slack_alerter(msg, webhook_url):
                 # "title": "Alert details",
                 "text": "Alert details:",
                 "footer": "honeyλ",
-                "footer_icon": "https://avatars2.githubusercontent.com/u/18599493",
+                "footer_icon": "https://raw.githubusercontent.com/0x4D31/honeyLambda/master/docs/slack-footer.png",
                 "fields": [
                     {
                         "title": "Time",
