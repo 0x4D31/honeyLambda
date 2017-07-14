@@ -3,7 +3,7 @@
 Serverless trap
 
 [![serverless](http://public.serverless.com/badges/v3.svg)](http://www.serverless.com)
-[![license](https://img.shields.io/github/license/mashape/apistatus.svg)]()
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 honeyλ - a simple serverless application designed to create and monitor URL [{honey}tokens](https://www.symantec.com/connect/articles/honeytokens-other-honeypot), on top of AWS Lambda and Amazon API Gateway
 * Slack notifications
