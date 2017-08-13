@@ -7,6 +7,7 @@ Serverless trap
 
 honeyλ - a simple serverless application designed to create and monitor URL [{honey}tokens](https://www.symantec.com/connect/articles/honeytokens-other-honeypot), on top of AWS Lambda and Amazon API Gateway
 * Slack notifications
+* Email alerts
 * Load config from local file or Amazon S3
 * Customize the HTTP response for each token
 * Threat Intelligence report (Source IP lookup)
