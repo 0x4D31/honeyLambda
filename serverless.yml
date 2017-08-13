@@ -8,6 +8,7 @@ provider:
   stage: dev
   region: ap-southeast-2
   memorySize: 128
+  #profile: dev-account
   ## Lambda function permissions
   ## S3 permissions are needed when you want to load the config from S3, or store the logs to S3
   ## You can set permission policy statements:
