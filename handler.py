@@ -271,7 +271,7 @@ def email_alerter(msg, conf):
     smtp_port = conf['alert']['email']['smtp_port']
     smtp_user = conf['alert']['email']['smtp_user']
     smtp_password = conf['alert']['email']['smtp_password']
-    email_to = conf['alert']['email']['email_to']
+    to_email = conf['alert']['email']['to_email']
     subject = 'honeyLambda Alert'
     now = time.strftime('%a, %d %b %Y %H:%M:%S %Z', time.localtime())
     body = ("Honeytoken triggered!\n\n"
@@ -295,7 +295,7 @@ def email_alerter(msg, conf):
         msg['host'])
     email_text = "From: {}\nTo: {}\nSubject: {}\n\n{}".format(
         smtp_user,
-        ", ".join(email_to),
+        ", ".join(to_email),
         subject,
         body)
 
@@ -303,7 +303,7 @@ def email_alerter(msg, conf):
         server = smtplib.SMTP_SSL(smtp_server, smtp_port)
         server.ehlo()
         server.login(smtp_user, smtp_password)
-        server.sendmail(smtp_user, email_to, email_text)
+        server.sendmail(smtp_user, to_email, email_text)
         server.close()
         logger.info("Email Sent")
     except smtplib.SMTPException as err:
