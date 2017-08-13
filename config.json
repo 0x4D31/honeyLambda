@@ -19,12 +19,20 @@
 	},
 	"alert": {
 		"slack": {
-			"enabled": "true",
+			"enabled": "false",
 			"webhook-url": "https://hooks.slack.com/services/T3Sb6EXAMPLE"
+		},
+		"email": {
+			"enabled": "false",
+			"email_to": "honeylambda.alert@mailinator.com",
+			"smtp_server": "smtp.gmail.com",
+			"smtp_port": 465,
+			"smtp_user": "youremail@gmail.com",
+			"smtp_password": "yourpassword"
 		}
 	},
 	"threat-intel-lookup": {
-		"enabled": "true",
+		"enabled": "false",
 		"cymon2-user": "",
 		"cymon2-pass": ""
 	}
