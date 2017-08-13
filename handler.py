@@ -23,6 +23,7 @@ import logging
 import boto3
 import os
 import base64
+import smtplib
 
 __author__ = 'Adel "0x4d31" Ka'
 __version__ = '0.1'
@@ -39,10 +40,15 @@ def honeylambda(event, context):
 
     # Preparing alert message
     alertMessage = alert_msg(event, config)
+
     # Slack alert
     if config['alert']['slack']['enabled'] == "true":
         WEBHOOK_URL = config['alert']['slack']['webhook-url']
         slack_alerter(alertMessage, WEBHOOK_URL)
+
+    # Email alert
+    if config['alert']['email']['enabled'] == "true":
+        email_alerter(alertMessage, config)
 
     # Prepare and send HTTP response
     response = generate_http_response(event, config)
@@ -255,6 +261,52 @@ def alert_msg(e, conf):
     return msg
 
 
+def email_alerter(msg, conf):
+    """ Send Email alert """
+
+    smtp_server = conf['alert']['email']['smtp_server']
+    smtp_port = conf['alert']['email']['smtp_port']
+    smtp_user = conf['alert']['email']['smtp_user']
+    smtp_password = conf['alert']['email']['smtp_password']
+    email_to = conf['alert']['email']['email_to']
+    subject = 'honeyLambda Alert'
+    now = time.strftime('%a, %d %b %Y %H:%M:%S %Z', time.localtime())
+    body = ("Honeytoken triggered!\n\n"
+            "Time: {}\n"
+            "Source IP: {}\n"
+            "Threat Intel Report: {}\n"
+            "User-Agent: {}\n"
+            "Viewer Details: {}\n"
+            "Token Note: {}\n"
+            "Token: {}\n"
+            "Path: {}\n"
+            "Host: {}").format(
+        now,
+        msg['source-ip'],
+        msg['threat-intel'] if msg['threat-intel'] else "None",
+        msg['user-agent'],
+        msg['viewer-details'],
+        msg['token-note'],
+        msg['token'],
+        msg['path'],
+        msg['host'])
+    email_text = "From: {}\nTo: {}\nSubject: {}\n\n{}".format(
+        smtp_user,
+        ", ".join(email_to),
+        subject,
+        body)
+
+    try:
+        server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+        server.ehlo()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_user, email_to, email_text)
+        server.close()
+        logger.info("Email Sent")
+    except smtplib.SMTPException as err:
+        logger.error("Error sending email: {}".format(err))
+
+
 def slack_alerter(msg, webhook_url):
     """ Send Slack alert """
 
@@ -306,18 +358,8 @@ def slack_alerter(msg, webhook_url):
                         "short": "true"
                     },
                     {
-                        "title": "HTTP Method",
-                        "value": msg['http-method'],
-                        "short": "true"
-                    },
-                    {
                         "title": "Path",
                         "value": msg['path'],
-                        "short": "true"
-                    },
-                    {
-                        "title": "Body",
-                        "value": msg['body'] if msg['body'] else "None",
                         "short": "true"
                     },
                     {
