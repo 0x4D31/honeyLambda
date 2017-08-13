@@ -19,6 +19,7 @@
 import json
 import time
 import urllib2
+import urllib
 import logging
 import boto3
 import os
@@ -45,10 +46,12 @@ def honeylambda(event, context):
     if config['alert']['slack']['enabled'] == "true":
         WEBHOOK_URL = config['alert']['slack']['webhook-url']
         slack_alerter(alertMessage, WEBHOOK_URL)
-
     # Email alert
     if config['alert']['email']['enabled'] == "true":
         email_alerter(alertMessage, config)
+    # SMS alert
+    if config['alert']['sms']['enabled'] == "true":
+        sms_alerter(alertMessage, config)
 
     # Prepare and send HTTP response
     response = generate_http_response(event, config)
@@ -305,6 +308,41 @@ def email_alerter(msg, conf):
         logger.info("Email Sent")
     except smtplib.SMTPException as err:
         logger.error("Error sending email: {}".format(err))
+
+
+def sms_alerter(msg, conf):
+    """ Send SMS alert """
+
+    TWILIO_SMS_URL = "https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json"
+    to_number = conf['alert']['sms']['to_number']
+    from_number = conf['alert']['sms']['from_number']
+    twilio_account_sid = conf['alert']['sms']['twilio_account_sid']
+    twilio_auth_token = conf['alert']['sms']['twilio_auth_token']
+
+    body = (u"Honeytoken triggered by {}! \U0001F631\n"
+            "'{}'\n"
+            "Token Note: '{}'").format(
+        msg['source-ip'],
+        msg['viewer-details'],
+        msg['token-note']
+    )
+
+    populated_url = TWILIO_SMS_URL.format(twilio_account_sid)
+    post_params = {"To": to_number, "From": from_number, "Body": body}
+    data = urllib.urlencode(post_params)
+    req = urllib2.Request(populated_url)
+
+    authentication = "{}:{}".format(twilio_account_sid, twilio_auth_token)
+    base64string = base64.b64encode(authentication.encode('utf-8'))
+    req.add_header("Authorization", "Basic %s" % base64string.decode('ascii'))
+
+    try:
+        urllib2.urlopen(req, data)
+        logger.info("SMS Sent")
+    except Exception as err:
+        logger.error("Error sending SMS: {}".format(err))
+
+    return
 
 
 def slack_alerter(msg, webhook_url):
