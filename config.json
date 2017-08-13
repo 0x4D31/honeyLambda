@@ -24,11 +24,18 @@
 		},
 		"email": {
 			"enabled": "false",
-			"email_to": "honeylambda.alert@mailinator.com",
+			"to_email": "honeylambda.alert@mailinator.com",
 			"smtp_server": "smtp.gmail.com",
 			"smtp_port": 465,
 			"smtp_user": "youremail@gmail.com",
 			"smtp_password": "yourpassword"
+		},
+		"sms": {
+			"enabled": "false",
+			"to_number": "",
+			"from_number": "",
+			"twilio_account_sid": "",
+			"twilio_auth_token": ""
 		}
 	},
 	"threat-intel-lookup": {
