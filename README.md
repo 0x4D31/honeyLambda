@@ -89,4 +89,3 @@ Open the generated URL/endpoint in your browser to test if it works:
 - [x] Check the source IP address against Threat Intelligence feeds (e.g. Cymon API)
 - [x] Email alert
 - [x] SMS alert ([Twilio](https://twilio.com))
-- [ ] SSL Client Fingerprint ([JA3](https://github.com/salesforce/ja3))
