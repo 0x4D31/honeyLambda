@@ -80,8 +80,7 @@ money; concurrency and maximum-instance settings are not spending caps.
    ID/note, bounded request metadata and source-IP provenance. Unknown URLs get
    the configured default response and produce no honeytoken event.
 4. Write each event as one JSON line to stdout, including the full query string.
-   Optional body capture has a fixed maximum and records truncation. Keep the
-   event model small; do not add a content-redaction subsystem.
+   Optional body capture has a fixed maximum and records truncation.
 5. Attempt optional Slack and JSON webhook notifications within a bounded time
    budget before returning. A sink failure must not alter the decoy response.
    Do not launch background delivery after a serverless handler returns.
@@ -142,8 +141,8 @@ the v1 deployment is the safest bridge when its URL cannot be changed.
 
 ## v2 release gates
 
-- [ ] Core tests, race detector, formatting and vet pass in CI.
-- [ ] Binary, HEAD, malformed-query, duplicate-parameter, proxy-spoofing,
+- [x] Core tests, race detector, formatting and vet pass in CI.
+- [x] Binary, HEAD, malformed-query, duplicate-parameter, proxy-spoofing,
       notification-failure and resource-boundary behavior is covered.
 - [ ] Supported build targets compile; the container builds and serves tokens.
 - [ ] AWS template validates and a live Function URL passes a token smoke test.

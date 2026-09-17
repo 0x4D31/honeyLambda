@@ -108,5 +108,5 @@ The full query string is retained. Host (256 bytes), User-Agent (512 bytes),
 Content-Type (256 bytes) and method (32 bytes) are bounded. If body capture is
 enabled, `body_base64` contains the byte prefix; `body_truncated` marks a prefix
 shorter than the received body, and `body_read_error` marks an incomplete read.
-There is no content-redaction engine. The event schema version is independent
-of the application/configuration major version.
+The event schema version is independent of the application/configuration major
+version.

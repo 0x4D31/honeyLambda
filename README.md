@@ -12,6 +12,7 @@ changing an existing deployment.
 - Custom status, content type, text or binary response, including a 1×1 pixel.
 - JSON events on stdout, Slack notifications and a generic JSON webhook.
 - One HTTP server for local use, VMs and container platforms.
+- An AWS Lambda adapter and a plain CloudFormation deployment example.
 - No Serverless Framework, database or threat-intelligence service required.
 
 A hit means the URL was fetched. Link scanners, preview bots and email image
@@ -88,13 +89,15 @@ log collection and retention on your hosting platform.
 
 ## Documentation
 
+- [Deploy on AWS, Cloud Run, Azure or a container host](docs/deployment.md)
 - [Configuration and event format](docs/configuration.md)
 - [Operating the receiver](docs/operations.md)
 - [Migrating from v1](docs/migration.md)
 - [v2 design, tradeoffs and release gates](docs/v2-design.md)
 
-Cloud packaging and provider-specific deployment instructions are the next PR
-in the v2 series; this core branch is directly runnable as an HTTP service.
+The AWS adapter and container packaging are included. Cloud Run and Azure use
+the same container; their recipes still need live cloud verification before
+being called tested deployments.
 
 ## Development
 
@@ -103,10 +106,10 @@ go test -race ./...
 go vet ./...
 ```
 
-The core uses the Go standard library. Tests exercise matching, binary/HEAD
-responses, source-address trust, request capture limits, notification failures
-and concurrent requests. No live cloud account or notification credentials are
-needed for these tests.
+The core uses the Go standard library; the AWS entry point adds `aws-lambda-go`.
+Tests exercise matching, binary/HEAD responses, source-address trust, request
+capture limits, notification failures and concurrent requests. No live cloud
+account or notification credentials are needed for these tests.
 
 ## License
 

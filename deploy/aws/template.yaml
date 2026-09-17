@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: honeyLambda v2 receiver with a public Function URL (no Serverless Framework)
+
+Parameters:
+  FunctionName:
+    Type: String
+    Default: honeylambda-v2
+    AllowedPattern: '[a-zA-Z0-9_-]+'
+    MaxLength: 64
+  CodeBucket:
+    Type: String
+    Description: Existing artifact bucket in this region
+  CodeKey:
+    Type: String
+    Description: Unique S3 key for the ARM64 ZIP (change for each update)
+  ReservedConcurrency:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 100
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90]
+  SlackWebhookURL:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Optional value for HONEY_SLACK_URL; config must enable that destination
+  WebhookURL:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Optional value for HONEY_WEBHOOK_URL; config must enable that destination
+
+Resources:
+  ReceiverLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${FunctionName}
+      RetentionInDays: !Ref LogRetentionDays
+  ReceiverRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: receiver-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !GetAtt ReceiverLogs.Arn
+  Receiver:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref FunctionName
+      Role: !GetAtt ReceiverRole.Arn
+      Runtime: provided.al2023
+      Handler: bootstrap
+      Architectures: [arm64]
+      MemorySize: 128
+      Timeout: 10
+      ReservedConcurrentExecutions: !Ref ReservedConcurrency
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          HONEY_CONFIG: config/config.json
+          HONEY_SLACK_URL: !Ref SlackWebhookURL
+          HONEY_WEBHOOK_URL: !Ref WebhookURL
+  ReceiverURL:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt Receiver.Arn
+      AuthType: NONE
+      InvokeMode: BUFFERED
+  PublicURLPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Receiver
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+  PublicInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Receiver
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+Outputs:
+  Endpoint:
+    Description: Public base URL; append a configured token path/query
+    Value: !GetAtt ReceiverURL.FunctionUrl
+  LogGroup:
+    Value: !Ref ReceiverLogs
