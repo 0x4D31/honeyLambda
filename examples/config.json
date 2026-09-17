@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "default_response": {
+    "status": 404,
+    "content_type": "text/plain; charset=utf-8",
+    "body": "Not found\n"
+  },
+  "tokens": [
+    {
+      "id": "secret-document",
+      "path": "/v1/get-pass",
+      "query": {"user": "jack"},
+      "note": "Example: URL embedded in secret.doc",
+      "response": {
+        "status": 200,
+        "content_type": "image/png",
+        "body_file": "../static/pixel.png"
+      }
+    },
+    {
+      "id": "login-breadcrumb",
+      "path": "/v1/get-pass",
+      "query": {"page": "2"},
+      "note": "Example: hidden link in login page"
+    }
+  ],
+  "alerts": {"timeout_ms": 2000, "cooldown_seconds": 60},
+  "capture_body_bytes": 0,
+  "trusted_proxies": []
+}
