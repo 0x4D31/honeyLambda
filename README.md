@@ -1,92 +1,113 @@
-<img align="left" src="https://github.com/0x4D31/honeyLambda/blob/master/docs/honeyLambda-sm.png" width="250px">
+# honeyλ
 
-Serverless trap
+Small HTTP honeytokens. Put a decoy URL in a document, inbox, configuration file
+or browser history. When that URL is requested, honeyLambda records an event,
+optionally sends an alert, and returns a response you control.
 
-[![serverless](http://public.serverless.com/badges/v3.svg)](http://www.serverless.com)
-[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+**v2 is under development.** This branch replaces the original Python 2 / AWS
+implementation with Go. Read the [migration guide](docs/migration.md) before
+changing an existing deployment.
 
-honeyλ - a simple serverless application designed to create and monitor URL [{honey}tokens](https://www.symantec.com/connect/articles/honeytokens-other-honeypot), on top of AWS Lambda and Amazon API Gateway
-* Slack notifications
-* Email and SMS alerts
-* Load config from local file or Amazon S3
-* Customize the HTTP response for each token
-* Threat Intelligence report (Source IP lookup)
-  * Using Cymon API v2
-* Based on Serverless framework
-  * pay-what-you-use
-  * provider agnostic
+- Exact path and query matching, with a stable ID and note for each token.
+- Custom status, content type, text or binary response, including a 1×1 pixel.
+- JSON events on stdout, Slack notifications and a generic JSON webhook.
+- One HTTP server for local use, VMs and container platforms.
+- No Serverless Framework, database or threat-intelligence service required.
 
-## Description
-honeyλ allows you to create and monitor fake HTTP endpoints automatically. You can then place these URL honeytokens in e.g. your inbox, documents, browser history, or embed them as {hidden} links in your web pages (Note: [honeybits](https://github.com/0x4D31/honeybits) can be used for spreading breadcrumbs across your systems to lure the attackers toward your traps). Depending on how and where you implement honeytokens, you may detect human attackers, malicious insiders, content scrapers, or bad bots.
+A hit means the URL was fetched. Link scanners, preview bots and email image
+proxies can trigger tokens too; it does not establish who opened a document or
+prove malicious intent.
 
-This application is based on [Serverless framework](https://serverless.com) and can be deployed in different cloud providers such as Amazon Web Services (AWS), Microsoft Azure, IBM OpenWhisk or Google Cloud (Only tested on AWS; the main function may need small changes to support other providers). If your cloud provider is AWS, it automatically creates HTTP endpoints using Amazon API Gateway and then starts monitoring the HTTP endpoints using honeyλ Lambda function.
+## Try it locally
 
-## Setup
-* Install Serverless framework:
-  * ```npm install -g serverless```
-* Install honeyλ:
-  * ```serverless install --url https://github.com/0x4d31/honeyLambda```
-* Edit `serverless.yml` and set HTTP endpoint path (default: /v1/get-pass)
-* Edit `config.json` and fill in your Slack Webhook URL. Change the trap/token configs as you need
-* You can customize the HTTP response for each token
-  * For example you can return a 1x1px beacon image in response and embed the token in your decoy documents or email (tracking pixel!)
+Install a supported Go release (1.26 or newer), then from this checkout:
 
-## Deploy
-* Set up your [AWS Credentials](https://serverless.com/framework/docs/providers/aws/guide/credentials/)
-* In order to deploy honeyλ, simply run:
-  * ```serverless deploy```
-
-Output:
-
-```
-Serverless: Packaging service...
-Serverless: Creating Stack...
-Serverless: Checking Stack create progress...
-.....
-Serverless: Stack create finished...
-Serverless: Uploading CloudFormation file to S3...
-Serverless: Uploading artifacts...
-Serverless: Uploading service .zip file to S3 (116.22 KB)...
-Serverless: Validating template...
-Serverless: Updating Stack...
-Serverless: Checking Stack update progress...
-.................................
-Serverless: Stack update finished...
-Service Information
-service: honeyLambda
-stage: dev
-region: ap-southeast-2
-api keys:
-  None
-endpoints:
-  GET - https://rz1bEXAMPLE.execute-api.ap-southeast-2.amazonaws.com/dev/v1/get-pass
-functions:
-  honeylambda: honeyLambda-dev-honeylambda
+```sh
+go build -trimpath -o bin/honeylambda ./cmd/honeylambda
+./bin/honeylambda check -config examples/config.json
+./bin/honeylambda serve -config examples/config.json -listen 127.0.0.1:8080
 ```
 
-* __Note:__ If you want to return binary in HTTP response (e.g. Content-Type: image/png), you have to manually configure Binary Support using the Amazon API Gateway console (it's not yet possible to set binary media types automatically using serverless):
+In another terminal:
 
-Open the Amazon API Gateway console, add the binary media type __\*/\*__, and save.
+```sh
+curl -i 'http://127.0.0.1:8080/v1/get-pass?user=jack'
+```
 
-<img src="https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-apigw-binarysupport.png" width="800">
+You should receive a PNG and see a JSON event for `secret-document` on stdout.
+The example sends no external notifications. Unknown URLs return the default
+404 response and produce no honeytoken event.
 
-Once done, you have to re-deploy the API to the dev stage
+## Create a token
 
-<img src="https://github.com/0x4D31/honeyLambda/blob/master/docs/aws-api-redeploy.png" width="450">
+Generate a random value, then add it to your configuration:
 
-## Usage
-Open the generated URL/endpoint in your browser to test if it works:
+```sh
+./bin/honeylambda token
+```
 
-![honeyLambdaURL](https://github.com/0x4D31/honeyLambda/blob/master/docs/http-response.png)
+```json
+{
+  "version": 2,
+  "default_response": {"status": 404, "body": "Not found\n"},
+  "tokens": [{
+    "id": "finance-document",
+    "path": "/export/REPLACE_WITH_RANDOM_VALUE",
+    "note": "URL placed in the finance decoy document",
+    "response": {"status": 200, "body": "Export expired\n"}
+  }]
+}
+```
 
-## Slack Alert
-![threatintel](https://github.com/0x4D31/honeyLambda/blob/master/docs/slack-alert_threatintel.png)
+Save this as `config.json`, run `honeylambda check`, and restart the service with
+it. The `token` command generates 128 random bits; it does not register or deploy
+a token. Use unique, unpredictable values for real tokens. The public examples
+are only for testing.
 
-## TODO
-- [x] Remote config: load config from Amazon S3
-- [x] Beacon image / return image as HTTP response 
-- [x] Customize the HTTP response for each token
-- [x] Check the source IP address against Threat Intelligence feeds (e.g. Cymon API)
-- [x] Email alert
-- [x] SMS alert ([Twilio](https://twilio.com))
-- [ ] HTTP Client Fingerprinting
+## Notifications
+
+Add environment-variable **names** to `alerts` in your configuration:
+
+```json
+"alerts": {
+  "slack_url_env": "HONEY_SLACK_URL",
+  "webhook_url_env": "HONEY_WEBHOOK_URL",
+  "timeout_ms": 2000,
+  "cooldown_seconds": 60
+}
+```
+
+Set the named variables in your runtime. You can configure either destination or
+both; URLs must use HTTPS. The generic webhook receives the same JSON event as
+stdout. Route it to your existing automation for email, SMS or enrichment.
+
+Notifications are best-effort and finish before the HTTP response. A failed
+notification leaves the decoy response unchanged. The cooldown limits attempts
+per token **per process**; every matched request is still recorded. Configure
+log collection and retention on your hosting platform.
+
+## Documentation
+
+- [Configuration and event format](docs/configuration.md)
+- [Operating the receiver](docs/operations.md)
+- [Migrating from v1](docs/migration.md)
+- [v2 design, tradeoffs and release gates](docs/v2-design.md)
+
+Cloud packaging and provider-specific deployment instructions are the next PR
+in the v2 series; this core branch is directly runnable as an HTTP service.
+
+## Development
+
+```sh
+go test -race ./...
+go vet ./...
+```
+
+The core uses the Go standard library. Tests exercise matching, binary/HEAD
+responses, source-address trust, request capture limits, notification failures
+and concurrent requests. No live cloud account or notification credentials are
+needed for these tests.
+
+## License
+
+GPL-3.0-or-later, preserving the original project's license. See [LICENSE](LICENSE).
