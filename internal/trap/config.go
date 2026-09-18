@@ -3,7 +3,6 @@ package trap
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,26 +26,30 @@ var identifier = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$`)
 var envName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 type Config struct {
-	Version          int         `json:"version"`
-	DefaultResponse  Response    `json:"default_response"`
-	Tokens           []Token     `json:"tokens"`
-	Alerts           AlertConfig `json:"alerts"`
-	CaptureBodyBytes int         `json:"capture_body_bytes"`
-	TrustedProxies   []string    `json:"trusted_proxies"`
+	Schema           string               `json:"$schema,omitempty"`
+	Responses        map[string]*Response `json:"responses,omitempty"`
+	Version          int                  `json:"version"`
+	DefaultResponse  Response             `json:"default_response"`
+	Tokens           []Token              `json:"tokens"`
+	Alerts           AlertConfig          `json:"alerts"`
+	CaptureBodyBytes int                  `json:"capture_body_bytes"`
+	TrustedProxies   []string             `json:"trusted_proxies,omitempty"`
 	proxies          []netip.Prefix
 }
 
 type Token struct {
-	ID       string            `json:"id"`
-	Path     string            `json:"path"`
-	Query    map[string]string `json:"query,omitempty"`
-	Note     string            `json:"note,omitempty"`
-	Response *Response         `json:"response,omitempty"`
+	ID               string            `json:"id"`
+	Path             string            `json:"path"`
+	Query            map[string]string `json:"query,omitempty"`
+	Note             string            `json:"note,omitempty"`
+	Response         *Response         `json:"response,omitempty"`
+	ResponseRef      string            `json:"response_ref,omitempty"`
+	resolvedResponse *Response
 }
 
 type Response struct {
-	Status      int    `json:"status"`
-	ContentType string `json:"content_type"`
+	Status      int    `json:"status,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
 	Body        string `json:"body,omitempty"`
 	BodyBase64  string `json:"body_base64,omitempty"`
 	BodyFile    string `json:"body_file,omitempty"`
@@ -79,14 +82,9 @@ func decode(r io.Reader, dir string) (*Config, error) {
 	if len(b) > maxConfigBytes {
 		return nil, errors.New("config exceeds 4 MiB")
 	}
-	d := json.NewDecoder(strings.NewReader(string(b)))
-	d.DisallowUnknownFields()
 	var c Config
-	if err := d.Decode(&c); err != nil {
+	if err := strictJSON(b, &c); err != nil {
 		return nil, fmt.Errorf("decode config: %w", err)
-	}
-	if err := d.Decode(new(any)); err != io.EOF {
-		return nil, errors.New("config must contain one JSON object")
 	}
 	if err := c.validate(dir); err != nil {
 		return nil, err
@@ -118,9 +116,12 @@ func (c *Config) validate(dir string) error {
 		return errors.New("alerts.cooldown_seconds must be between 0 and 86400")
 	}
 	for _, name := range []string{c.Alerts.SlackURLEnv, c.Alerts.WebhookURLEnv} {
-		if name != "" && !envName.MatchString(name) {
-			return errors.New("alert URL settings must name environment variables")
+		if name != "" && (!envName.MatchString(name) || reservedEnv(name)) {
+			return errors.New("alert URL settings must name non-reserved environment variables")
 		}
+	}
+	if c.Alerts.SlackURLEnv != "" && c.Alerts.SlackURLEnv == c.Alerts.WebhookURLEnv {
+		return errors.New("notification destinations must use distinct environment variable names")
 	}
 	for _, cidr := range c.TrustedProxies {
 		p, err := netip.ParsePrefix(cidr)
@@ -134,7 +135,22 @@ func (c *Config) validate(dir string) error {
 	}
 	totalResponseBytes := len(c.DefaultResponse.data)
 	ids := make(map[string]bool)
-	byPath := make(map[string][]Token)
+	selectors := make(map[string]string)
+	if len(c.Responses) > 1000 {
+		return errors.New("configure at most 1000 named responses")
+	}
+	for name, response := range c.Responses {
+		if !identifier.MatchString(name) || response == nil {
+			return fmt.Errorf("invalid named response %q", name)
+		}
+		if err := response.prepare(dir); err != nil {
+			return fmt.Errorf("response %s: %w", name, err)
+		}
+		totalResponseBytes += len(response.data)
+	}
+	if totalResponseBytes > 16<<20 {
+		return errors.New("combined response bodies exceed 16 MiB")
+	}
 	for i := range c.Tokens {
 		t := &c.Tokens[i]
 		if !identifier.MatchString(t.ID) || ids[t.ID] {
@@ -158,12 +174,21 @@ func (c *Config) validate(dir string) error {
 		if len(t.Path)+1+len(q.Encode()) > maxTargetBytes {
 			return fmt.Errorf("token %s: URL selector exceeds 8192 bytes", t.ID)
 		}
-		for _, previous := range byPath[t.Path] {
-			if sameSelector(previous.Query, t.Query) {
-				return fmt.Errorf("tokens %s and %s have identical selectors", previous.ID, t.ID)
-			}
+		selector := t.Path + "\x00" + q.Encode()
+		if previous, exists := selectors[selector]; exists {
+			return fmt.Errorf("tokens %s and %s have identical selectors", previous, t.ID)
 		}
-		byPath[t.Path] = append(byPath[t.Path], *t)
+		selectors[selector] = t.ID
+		if t.ResponseRef != "" {
+			if t.Response != nil {
+				return fmt.Errorf("token %s: use response or response_ref, not both", t.ID)
+			}
+			response, exists := c.Responses[t.ResponseRef]
+			if !exists {
+				return fmt.Errorf("token %s: unknown response_ref %q", t.ID, t.ResponseRef)
+			}
+			t.resolvedResponse = response
+		}
 		if t.Response != nil {
 			if err := t.Response.prepare(dir); err != nil {
 				return fmt.Errorf("token %s response: %w", t.ID, err)
@@ -177,16 +202,9 @@ func (c *Config) validate(dir string) error {
 	return nil
 }
 
-func sameSelector(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if other, ok := b[k]; !ok || other != v {
-			return false
-		}
-	}
-	return true
+// Deployment and process settings must not be overwritten by notification URLs.
+func reservedEnv(name string) bool {
+	return name == "PORT" || name == "HONEY_CONFIG" || name == "HONEY_DEPLOYMENT_REVISION" || strings.HasPrefix(name, "HONEY_REMOTE_") || strings.HasPrefix(name, "AWS_") || strings.HasPrefix(name, "K_")
 }
 
 func (r *Response) prepare(dir string) error {
@@ -223,6 +241,9 @@ func (r *Response) prepare(dir string) error {
 		}
 	}
 	if r.BodyFile != "" {
+		if dir == "" {
+			return errors.New("remote config cannot use body_file; use export to inline assets")
+		}
 		path := r.BodyFile
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(dir, path)
@@ -244,8 +265,8 @@ func (r *Response) prepare(dir string) error {
 	if len(r.data) > maxResponseBytes {
 		return errors.New("response body exceeds 1 MiB")
 	}
-	if (r.Status == 204 || r.Status == 304) && len(r.data) != 0 {
-		return errors.New("status 204/304 cannot have a body")
+	if (r.Status == 204 || r.Status == 205 || r.Status == 304) && len(r.data) != 0 {
+		return errors.New("status 204/205/304 cannot have a body")
 	}
 	return nil
 }

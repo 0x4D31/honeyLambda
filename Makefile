@@ -16,7 +16,7 @@ check:
 lambda:
 	rm -rf dist/lambda
 	mkdir -p dist/lambda
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -o dist/lambda/bootstrap ./cmd/honeylambda-lambda
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -buildvcs=false -trimpath -o dist/lambda/bootstrap ./cmd/honeylambda-lambda
 	go run ./cmd/honeylambda bundle -config "$(CONFIG_DIR)/config.json" -out dist/lambda/config
 	rm -f dist/honeylambda-lambda-arm64.zip
 	cd dist/lambda && zip -qr ../honeylambda-lambda-arm64.zip bootstrap config

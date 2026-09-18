@@ -93,3 +93,12 @@ Validate a small token set and its response bytes/events first. Configure any
 email/SMS replacement before removing those v1 notifications. Roll back by
 restoring traffic to the old deployment and configuration. Do not delete its
 stack until old URLs have been accounted for.
+
+## Remote configuration in v2
+
+The v1 S3-per-invocation loader is not restored. v2 can refresh a self-contained
+JSON snapshot over HTTPS, with ETags and last-valid-config fallback. Export your
+converted local config with `honeylambda export`, then configure the channel as
+shown in [remote configuration](remote-configuration.md). Native object-store
+IAM authentication is not implemented. A config change can preserve token paths
+and query selectors, but it cannot preserve a cloud endpoint hostname by itself.

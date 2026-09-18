@@ -19,7 +19,7 @@ export function deployAWS(s: Settings, pkg: Package, environment: Record<string,
     }, opts);
     const receiver = new aws.lambda.Function("receiver", {
         name, role: role.arn, runtime: "provided.al2023", handler: "bootstrap",
-        architectures: ["arm64"], memorySize: 128, timeout: 10,
+        architectures: ["arm64"], memorySize: 128, timeout: 20,
         reservedConcurrentExecutions: s.maxInstances ?? -1,
         code: new pulumi.asset.FileArchive(pkg.directory),
         environment: {variables: {HONEY_CONFIG: "config/config.json", ...environment}},

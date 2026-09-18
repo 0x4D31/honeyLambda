@@ -90,7 +90,9 @@ cloud orchestration is introduced.
 ## Runtime contract
 
 1. Load one versioned JSON file at startup; fail on invalid configuration,
-   unknown fields, duplicate token selectors or missing response assets.
+   unknown/duplicate/case-misspelled fields, duplicate token selectors or missing
+   response assets. Optional remote refresh validates a whole candidate before
+   replacing the active snapshot. See [final review](final-review.md).
 2. Match the exact escaped path and all configured query parameters. Required
    parameters must occur once with the exact value; extra parameters are allowed.
    A malformed query or a request matching multiple tokens produces no event.
@@ -106,7 +108,7 @@ cloud orchestration is introduced.
    Do not launch background delivery after a serverless handler returns.
 6. Use a bounded, per-token, per-process notification cooldown. It suppresses
    outbound attempts only, never event logging. It does not provide distributed
-   deduplication and resets on restart. Multiple instances can notify separately.
+   deduplication and resets on restart or activation of changed config. Multiple instances can notify separately.
 7. Return configured bytes/status/content type, with `Cache-Control: no-store`.
    HEAD still triggers a token but sends no response body. This cannot force
    clients or intermediary caches to fetch a URL again.
@@ -130,7 +132,8 @@ Keep native Slack notification and a generic JSON webhook. Remove direct SMTP,
 Twilio and Cymon integration, remote S3 configuration fetches, device inference,
 and obsolete setup screenshots. Email, SMS and reputation enrichment belong in
 an operator's downstream workflow. No database, admin API, UI, dynamic token
-enrollment, DNS tokens or fingerprinting engine in this release.
+enrollment API, DNS tokens or fingerprinting engine in this release. Optional
+remote JSON snapshots can update the registered token set without redeployment.
 
 If reliable delivery or coordinated throttling is needed, add a durable
 queue/outbox adapter in a later PR with retry, idempotency and failure semantics

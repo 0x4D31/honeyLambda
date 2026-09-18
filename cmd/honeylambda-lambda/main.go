@@ -21,7 +21,12 @@ func main() {
 		log.Error("configuration_failed", "reason", err.Error())
 		os.Exit(1)
 	}
-	h, err := trap.New(c, os.Stdout, log)
+	options, err := trap.RemoteOptionsFromEnv()
+	if err != nil {
+		log.Error("configuration_failed", "reason", err.Error())
+		os.Exit(1)
+	}
+	h, err := trap.NewReceiver(c, options, os.Stdout, log)
 	if err != nil {
 		log.Error("configuration_failed", "reason", err.Error())
 		os.Exit(1)

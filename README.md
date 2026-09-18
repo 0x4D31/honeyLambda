@@ -9,6 +9,7 @@ implementation with Go. Read the [migration guide](docs/migration.md) before
 changing an existing deployment.
 
 - Exact path and query matching, with a stable ID and note for each token.
+- Reusable response presets and optional remote config refresh without redeployment.
 - Custom status, content type, text or binary response, including a 1×1 pixel.
 - JSON events on stdout, Slack notifications and a generic JSON webhook.
 - One HTTP server for local use, VMs and container platforms.
@@ -41,29 +42,22 @@ The example sends no external notifications. Unknown URLs return the default
 
 ## Create a token
 
-Generate a random value, then add it to your configuration:
+Create a config with a fresh random token:
 
 ```sh
-./bin/honeylambda token
+./bin/honeylambda init
+./bin/honeylambda check
+./bin/honeylambda urls -endpoint https://YOUR_ENDPOINT
 ```
 
-```json
-{
-  "version": 2,
-  "default_response": {"status": 404, "body": "Not found\n"},
-  "tokens": [{
-    "id": "finance-document",
-    "path": "/export/REPLACE_WITH_RANDOM_VALUE",
-    "note": "URL placed in the finance decoy document",
-    "response": {"status": 200, "body": "Export expired\n"}
-  }]
-}
-```
+`init` creates `config.json` and refuses to overwrite an existing file. Edit it to
+add tokens, notes and responses; `token` remains available to generate another
+128-bit random value. The example configuration is only for smoke testing.
 
-Save this as `config.json`, run `honeylambda check`, and restart the service with
-it. The `token` command generates 128 random bits; it does not register or deploy
-a token. Use unique, unpredictable values for real tokens. The public examples
-are only for testing.
+The [configuration guide](docs/configuration.md) describes reusable named responses
+and the editor schema. Use [remote configuration](docs/remote-configuration.md)
+when tokens should change without a deployment; otherwise restart/redeploy after
+editing the packaged config.
 
 ## Notifications
 
@@ -111,6 +105,7 @@ notifications, token URL outputs, updates and removal. Local use needs only Go.
 
 - [Deploy on AWS, Cloud Run, Azure or a container host](docs/deployment.md)
 - [Configuration and event format](docs/configuration.md)
+- [Remote configuration and refresh behavior](docs/remote-configuration.md)
 - [Operating the receiver](docs/operations.md)
 - [Migrating from v1](docs/migration.md)
 - [v2 design, tradeoffs and release gates](docs/v2-design.md)

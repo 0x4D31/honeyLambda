@@ -19,7 +19,8 @@ export function prepare(settings: Settings, stack: string): Package {
     try {
         go(["run", "./cmd/honeylambda", "bundle", "-config", settings.configFile, "-out", path.join(temporary, "config")]);
         if (settings.cloud === "aws") {
-            go(["build", "-trimpath", "-tags", "lambda.norpc", "-ldflags=-s -w", "-o", path.join(temporary, "bootstrap"), "./cmd/honeylambda-lambda"],
+            if (process.platform === "win32") throw new Error("Build Lambda from Linux/macOS or WSL to preserve executable permissions");
+            go(["build", "-buildvcs=false", "-trimpath", "-tags", "lambda.norpc", "-ldflags=-s -w", "-o", path.join(temporary, "bootstrap"), "./cmd/honeylambda-lambda"],
                 {...process.env, CGO_ENABLED: "0", GOOS: "linux", GOARCH: "arm64"});
         } else {
             // A minimal build context: never copy the working tree or notification credentials.

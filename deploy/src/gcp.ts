@@ -13,8 +13,7 @@ export function deployGCP(s: Settings, pkg: Package, environment: Record<string,
     }, opts));
     const repository = new gcp.artifactregistry.Repository("receiver", {
         location: s.region, format: "DOCKER", repositoryId: resourceName(),
-        cleanupPolicyDryRun: false,
-        cleanupPolicies: [{id: "old-images", action: "DELETE", condition: {tagState: "ANY", olderThan: "2592000s"}}, {id: "keep-recent", action: "KEEP", mostRecentVersions: {keepCount: 5}}],
+        // Keep images for rollback; cleanup cannot determine which digests are still serving.
     }, {...opts, dependsOn: services});
     const auth = gcp.organizations.getClientConfigOutput(opts);
     const registry = `${s.region}-docker.pkg.dev`;

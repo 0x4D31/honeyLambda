@@ -13,7 +13,8 @@ Do not interpret mocked provider tests as a successful cloud deployment.
 
 Install Go 1.26+, Node.js 22+, and the [Pulumi CLI](https://www.pulumi.com/docs/install/).
 GCP and Azure also require Docker with BuildKit; AWS builds a native Lambda ZIP
-and does not require Docker. Azure requires the Azure CLI for registry authentication.
+and does not require Docker. Build Lambda from Linux/macOS or WSL to preserve
+executable permissions. Azure requires the Azure CLI for registry authentication.
 
 From the checkout root, create your service configuration as described in the
 [README](../README.md#create-a-token). To try the public test tokens first:
@@ -111,6 +112,10 @@ Provider authentication follows the providers' normal mechanisms.
 | `maxInstances` | Optional integer 1–100; Lambda reserved concurrency (default unreserved) or container maximum replicas (default 2) |
 | `slackWebhook` | Pulumi secret, required only when service config enables Slack |
 | `webhookURL` | Pulumi secret, required only when service config enables the JSON webhook |
+| `configURL` | Optional secret HTTPS remote-config URL |
+| `configToken` | Optional secret bearer token for `configURL` |
+| `configRefreshSeconds` | Remote refresh interval, 5–86400; default 60 |
+| `configTimeoutMS` | Remote fetch deadline, 100–5000; default 2000 |
 
 For notifications, enable the destination in your service JSON, then enter its
 URL at the secret prompt:
@@ -124,7 +129,8 @@ pulumi up
 Set only the destinations you enable. The deployment maps each value into the
 environment-variable name in `alerts`, so you do not maintain separate names
 per cloud. Azure uses Container Apps secret references; Lambda and Cloud Run use
-runtime environment settings. The values remain secrets in Pulumi state. Anyone
+runtime environment settings. The values remain secrets in Pulumi state. Azure receives a template revision
+fingerprint so changing only a secret value also rolls out a new app revision. Anyone
 with permission to inspect the corresponding cloud runtime configuration may
 also have access to them.
 
@@ -138,6 +144,9 @@ formats are involved.
 
 Edit the Go source, service config, or response files and run `pulumi up` again.
 The Lambda archive and container build context include the packaged config.
+With [remote config](remote-configuration.md), ordinary token/response updates
+only require publishing a new JSON snapshot. Pulumi token URL outputs describe
+the packaged bootstrap; use `honeylambda urls` for the latest remote snapshot.
 Cloud Run and Container Apps receive an **image digest**, so a changed build
 updates the service even though the registry staging tag is reused.
 
@@ -154,13 +163,14 @@ pulumi destroy
 
 Destroy removes the resources this stack owns, including its registry and logs.
 It leaves the GCP project and enabled APIs intact. Export logs before removal if
-you need them later. Azure registry storage and log ingestion can incur charges
-even when the app scales to zero. Maximum instance settings are capacity controls,
+you need them later. Registry images are retained until explicitly removed or the stack is destroyed,
+so automatic age/tag cleanup cannot break a running or rollback revision. Registry
+storage and log ingestion can incur charges even when the app scales to zero. Maximum instance settings are capacity controls,
 not spending limits. Cloud Run can briefly exceed revision instance limits.
 
 Containers scale to zero, accept concurrent requests, and use TCP startup probes;
 there is no public health URL that could collide with a token. AWS uses a
-10-second timeout and 128 MiB; Cloud Run uses its second-generation environment,
+20-second timeout and 128 MiB (including remote refresh and notification time); Cloud Run uses its second-generation environment,
 1 CPU/512 MiB and a 30-second request timeout; Azure uses 0.25 CPU/0.5 GiB.
 
 ## Local and other container hosts

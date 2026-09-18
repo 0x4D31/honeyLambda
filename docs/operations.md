@@ -50,3 +50,16 @@ For public deployments, choose a maximum instance count/concurrency and log
 retention suitable for the expected traffic. Unknown requests still consume
 hosting resources even though they produce no honeytoken events. These settings
 do not impose a hard spending cap.
+
+## Configuration lifecycle
+
+Local configuration is immutable for the process lifetime. Optional remote
+configuration replaces the active snapshot only after complete validation.
+Monitor `remote_config_refresh_failed` and compare `config_revision` in events
+when checking a rollout. A last-known-good remote snapshot lives only in memory;
+a cold start during an origin outage uses its packaged bootstrap.
+See [remote configuration](remote-configuration.md) for intervals and rollback.
+
+Notifications have their own bounded context, so a client disconnect after a
+matched request does not immediately cancel delivery. Process termination and
+platform execution deadlines can still interrupt it; this is not a durable queue.
