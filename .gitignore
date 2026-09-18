@@ -7,3 +7,8 @@
 *.test
 coverage.out
 .DS_Store
+
+/deploy/node_modules/
+/deploy/.build/
+/deploy/Pulumi.*.yaml
+/build-config/

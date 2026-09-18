@@ -12,11 +12,11 @@ test:
 check:
 	go run ./cmd/honeylambda check -config examples/config.json
 
-# CONFIG_DIR must contain config.json and any relative response assets.
+# CONFIG_DIR contains config.json; response assets are resolved by the bundler.
 lambda:
 	rm -rf dist/lambda
-	mkdir -p dist/lambda/config
+	mkdir -p dist/lambda
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -o dist/lambda/bootstrap ./cmd/honeylambda-lambda
-	cp -R "$(CONFIG_DIR)/." dist/lambda/config/
+	go run ./cmd/honeylambda bundle -config "$(CONFIG_DIR)/config.json" -out dist/lambda/config
 	rm -f dist/honeylambda-lambda-arm64.zip
 	cd dist/lambda && zip -qr ../honeylambda-lambda-arm64.zip bootstrap config

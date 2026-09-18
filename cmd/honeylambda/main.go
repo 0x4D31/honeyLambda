@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -28,7 +29,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: honeylambda <serve|check|token|version> [options]")
+		return errors.New("usage: honeylambda <serve|check|bundle|token|version> [options]")
 	}
 	command := args[0]
 	if command == "version" || command == "token" {
@@ -45,12 +46,16 @@ func run(args []string) error {
 		}
 		return err
 	}
-	if command != "serve" && command != "check" {
+	if command != "serve" && command != "check" && command != "bundle" {
 		return fmt.Errorf("unknown command %q", command)
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	configPath := flags.String("config", envOr("HONEY_CONFIG", "config.json"), "JSON configuration file")
 	var listen *string
+	var out *string
+	if command == "bundle" {
+		out = flags.String("out", "", "new directory for portable config and response assets")
+	}
 	if command == "serve" {
 		listen = flags.String("listen", "", "listen address (default :PORT, or :8080)")
 	}
@@ -60,18 +65,39 @@ func run(args []string) error {
 	if flags.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
 	}
-	c, err := trap.Load(*configPath)
-	if err != nil {
-		return err
+	if out != nil && *out == "" {
+		return errors.New("bundle requires -out DIRECTORY")
 	}
-	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	h, err := trap.New(c, os.Stdout, log)
+	c, err := trap.Load(*configPath)
 	if err != nil {
 		return err
 	}
 	if command == "check" {
 		fmt.Fprintln(os.Stderr, "configuration valid")
 		return nil
+	}
+	if command == "bundle" {
+		files, err := c.Bundle()
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(*out), 0755); err != nil {
+			return err
+		}
+		if err := os.Mkdir(*out, 0755); err != nil {
+			return fmt.Errorf("create bundle directory (must not exist): %w", err)
+		}
+		for name, data := range files {
+			if err := os.WriteFile(filepath.Join(*out, name), data, 0644); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	h, err := trap.New(c, os.Stdout, log)
+	if err != nil {
+		return err
 	}
 	if *listen == "" {
 		port := envOr("PORT", "8080")

@@ -12,7 +12,7 @@ changing an existing deployment.
 - Custom status, content type, text or binary response, including a 1×1 pixel.
 - JSON events on stdout, Slack notifications and a generic JSON webhook.
 - One HTTP server for local use, VMs and container platforms.
-- An AWS Lambda adapter and a plain CloudFormation deployment example.
+- One Pulumi workflow for AWS Lambda, Google Cloud Run and Azure Container Apps.
 - No Serverless Framework, database or threat-intelligence service required.
 
 A hit means the URL was fetched. Link scanners, preview bots and email image
@@ -87,6 +87,26 @@ notification leaves the decoy response unchanged. The cooldown limits attempts
 per token **per process**; every matched request is still recorded. Configure
 log collection and retention on your hosting platform.
 
+## Deploy
+
+With cloud authentication configured and `config.json` ready:
+
+```sh
+cd deploy
+npm ci
+pulumi login
+pulumi stack init aws-dev
+pulumi config set cloud aws
+pulumi config set region us-east-1
+pulumi up
+pulumi stack output endpoint
+```
+
+Choose `gcp` or `azure` and the corresponding region for those clouds; GCP also
+needs `projectId`. Install Go, Node.js and Pulumi; container targets also need
+Docker. The [deployment guide](docs/deployment.md) covers authentication, settings,
+notifications, token URL outputs, updates and removal. Local use needs only Go.
+
 ## Documentation
 
 - [Deploy on AWS, Cloud Run, Azure or a container host](docs/deployment.md)
@@ -95,9 +115,9 @@ log collection and retention on your hosting platform.
 - [Migrating from v1](docs/migration.md)
 - [v2 design, tradeoffs and release gates](docs/v2-design.md)
 
-The AWS adapter and container packaging are included. Cloud Run and Azure use
-the same container; their recipes still need live cloud verification before
-being called tested deployments.
+Cloud deployment uses the same service JSON on all three providers. Pulumi
+creates the supporting infrastructure and packages code/assets automatically.
+Live deployment, update and teardown tests remain release gates.
 
 ## Development
 

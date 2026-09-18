@@ -19,7 +19,9 @@ to apply changes. Unknown fields and invalid settings fail startup.
 | `trusted_proxies` | CIDRs allowed to supply X-Forwarded-For; default empty |
 
 Setting an alert variable name but leaving that environment variable empty is
-an error. Each destination must be an HTTPS URL without userinfo or fragment.
+a startup error. Each destination must be an HTTPS URL without userinfo or fragment.
+`check` validates configuration and response assets without resolving credentials;
+`serve` validates credentials before opening the listener.
 
 ## Tokens and matching
 
@@ -72,6 +74,18 @@ are limited to 16 MiB. Text and base64 bodies use the same limits. Statuses
 Responses include `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
 HEAD sends the same status/headers as GET, without response bytes. You do not
 need a different configuration for a binary response on an HTTP server.
+
+## Portable configuration bundles
+
+`honeylambda bundle -config PATH -out NEW_DIRECTORY` validates the config and
+copies its loaded response bodies into a portable directory. It rewrites body
+references in the output `config.json`, preserves exact bytes, deduplicates bodies,
+and leaves the source config unchanged. The output directory must not exist.
+Neither `check` nor `bundle` sends alerts or requires notification credentials.
+
+Pulumi and `make lambda` use this same bundler. Cloud, region, capacity and
+notification values belong to the [deployment settings](deployment.md#deployment-settings),
+not this JSON. A config/asset change takes effect after redeployment or restart.
 
 ## Event format
 
