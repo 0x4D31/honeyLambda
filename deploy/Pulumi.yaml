@@ -1,0 +1,8 @@
+name: honeylambda
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+    nodeargs: --max-old-space-size=4096
+description: One honeyLambda receiver on AWS, GCP, or Azure
+main: index.ts

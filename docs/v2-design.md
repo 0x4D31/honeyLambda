@@ -43,29 +43,49 @@ uses the standard library; only the AWS entry point needs `aws-lambda-go`.
 
 ## Deployment decision
 
-Remove **Serverless Framework**, not serverless deployment. A container is the
-portable deployment unit; a native executable remains useful on a VM or locally.
-Do not introduce a large multi-provider abstraction or require Kubernetes.
+Use **Pulumi** for cloud resource lifecycle and keep the Go runtime independent
+of deployment tooling. The first draft's CloudFormation plus manual GCP/Azure
+recipes left too much setup to the user; that decision is superseded here.
 
-| Target | Package | Infrastructure | Validation required before release |
-| --- | --- | --- | --- |
-| Local / VM | Go executable | Operator's service manager / TLS proxy | Local smoke and shutdown tests |
-| Generic container host | Non-root OCI image | Existing container platform | Image build and HTTP smoke test |
-| AWS Lambda | `bootstrap` binary, `provided.al2023` | CloudFormation Function URL example | Deploy and test in an AWS account |
-| Google Cloud Run | The same OCI image, `PORT` | `gcloud` recipe | Live deployment and source-IP verification |
-| Azure Container Apps | The same OCI image | `az` recipe | Live deployment and source-IP verification |
-| Cloudflare Workers | No native Go HTTP process | Would need a separate edge adapter / implementation | Deferred; not advertised as supported |
+| Option | Fit for this project | Decision |
+| --- | --- | --- |
+| Separate native templates/CLI recipes | Simple per provider, but separate packaging, registry, IAM, state and teardown workflows | Replace the first draft |
+| OpenTofu/Terraform modules | Established resource/state model; still need an image build/push integration and a cross-provider entry point | Reasonable alternative, more glue for this small source-deployed app |
+| Serverless Framework | Familiar function-oriented workflow; would need to reconcile Lambda packaging with the two container targets | No advantage over one explicit multi-provider program here |
+| Custom Go deployment CLI | Could present one command, but must own state, diffs, dependency ordering, drift and rollback semantics | Do not build a cloud orchestrator |
+| Pulumi with TypeScript infrastructure | Providers own lifecycle; one stack interface, normal preview/update/destroy and image-build integration | Choose; accept Node.js as a deployment-only dependency |
 
-Use plain CloudFormation for the compact AWS stack: no deployment framework is
-needed. Function URLs avoid the REST API's binary-media configuration. They
-support payload version 2.0; they are not an in-place replacement for an existing
-API Gateway URL. API Gateway HTTP API payload-v2 events can use the same adapter,
-but REST API payload-v1 events are outside this first release.
+The common API is deliberately small: cloud, region, service-config path,
+capacity and notification settings; GCP also needs an existing project ID.
+Separate stacks select providers. They share the same Go config parser/bundler
+and produce the same endpoint and token URL outputs. Provider modules contain
+only the differences required by the hosting services.
 
-For new public Function URLs, include both invocation permissions now required
-by AWS, restrict direct function invocation to invocation through the URL, set
-reserved concurrency, and retain logs for a finite period. Traffic still costs
-money; concurrency and maximum-instance settings are not spending caps.
+| Target | Package | Managed infrastructure |
+| --- | --- | --- |
+| Local / VM | Go executable | Operator's service manager / TLS proxy |
+| Generic container host | Non-root OCI image | Existing container platform |
+| AWS Lambda | ARM64 `bootstrap`, `provided.al2023` | Function URL, both public invocation permissions, execution role, log group |
+| Google Cloud Run | Linux amd64 OCI image | Required APIs, Artifact Registry, dedicated runtime service account, public service |
+| Azure Container Apps | Linux amd64 OCI image | Resource group, environment, Log Analytics, ACR, managed identity and pull role, app |
+
+AWS avoids an unnecessary registry and artifact bucket. Container targets use
+image digests for updates. Azure uses the deployer's short-lived CLI token for
+pushes and a managed identity for pulls; registry admin credentials stay disabled.
+The stable Pulumi Docker provider is pinned; its newer Docker Build alternative
+is currently documented as public preview. Revisit that provider when stable.
+
+Pulumi state is required; Pulumi Cloud is optional. The framework is absent from
+the runtime. Cloud accounts, billing, organization policy, credentials and quota
+remain prerequisites. A successful mocked resource test is not a live deployment.
+Cloudflare Workers is deferred because it needs a different execution adapter.
+
+Config validation is independent of notification credentials. Packaging snapshots
+response assets into content-addressed files and rewrites only the deployed copy;
+this prevents relative-path differences across Lambda ZIPs and container images.
+Keep one schema and validator instead of a second cloud-specific service schema.
+No redaction subsystem, extra threat-intelligence integration, or custom CLI for
+cloud orchestration is introduced.
 
 ## Runtime contract
 
@@ -80,8 +100,7 @@ money; concurrency and maximum-instance settings are not spending caps.
    ID/note, bounded request metadata and source-IP provenance. Unknown URLs get
    the configured default response and produce no honeytoken event.
 4. Write each event as one JSON line to stdout, including the full query string.
-   Optional body capture has a fixed maximum and records truncation. Keep the
-   event model small; do not add a content-redaction subsystem.
+   Optional body capture has a fixed maximum and records truncation.
 5. Attempt optional Slack and JSON webhook notifications within a bounded time
    budget before returning. A sink failure must not alter the decoy response.
    Do not launch background delivery after a serverless handler returns.
@@ -136,18 +155,18 @@ the v1 deployment is the safest bridge when its URL cannot be changed.
 1. **Go core and migration:** this design, config/matching/response/event runtime,
    Slack/webhook delivery, CLI, tests and CI; remove legacy code; rewrite README
    and operational/configuration/migration docs.
-2. **Cloud deployment:** AWS payload-v2 adapter and CloudFormation, non-root
-   container, Cloud Run/Azure recipes, packaging and deployment checks. Stack
+2. **Cloud deployment:** AWS payload-v2 adapter, non-root container, Go asset bundler,
+   unified Pulumi deployments, packaging and resource-contract checks. Stack
    this PR on the core PR so the runtime can be reviewed separately.
 
 ## v2 release gates
 
-- [ ] Core tests, race detector, formatting and vet pass in CI.
-- [ ] Binary, HEAD, malformed-query, duplicate-parameter, proxy-spoofing,
+- [x] Core tests, race detector, formatting and vet pass in CI.
+- [x] Binary, HEAD, malformed-query, duplicate-parameter, proxy-spoofing,
       notification-failure and resource-boundary behavior is covered.
-- [ ] Supported build targets compile; the container builds and serves tokens.
-- [ ] AWS template validates and a live Function URL passes a token smoke test.
-- [ ] Cloud Run and Azure recipes are exercised before claiming verified support.
+- [x] Supported build targets compile; the container builds and serves tokens.
+- [ ] AWS, GCP and Azure stacks pass live create/update/rollback/destroy tests.
+- [ ] Container ingress source-address behavior is verified on GCP and Azure.
 - [ ] At least one real v1 token URL/response is checked against the migration.
 - [ ] Event retention, notification failure monitoring and cost settings reviewed.
 - [ ] Versioned artifacts, checksums, migration notes and rollback instructions
@@ -155,7 +174,7 @@ the v1 deployment is the safest bridge when its URL cannot be changed.
 
 ## Platform references
 
-Reviewed 2026-09-17:
+Reviewed 2026-09-18:
 
 - [AWS Go runtime and packaging](https://docs.aws.amazon.com/lambda/latest/dg/lambda-golang.html)
 - [Function URL payload-v2 request/response contract](https://docs.aws.amazon.com/lambda/latest/dg/urls-invocation.html)
@@ -163,3 +182,8 @@ Reviewed 2026-09-17:
 - [Cloud Run container contract](https://cloud.google.com/run/docs/container-contract)
 - [Azure Container Apps scaling](https://learn.microsoft.com/en-us/azure/container-apps/scale-app)
 - [Cloudflare Workers language runtimes](https://developers.cloudflare.com/workers/languages/)
+
+- [Pulumi state and backends](https://www.pulumi.com/docs/iac/concepts/state-and-backends/)
+- [Pulumi Docker resource](https://www.pulumi.com/registry/packages/docker/api-docs/image/)
+- [Docker Build provider stability](https://www.pulumi.com/registry/packages/docker-build/api-docs/image/)
+- [Azure managed identity image pulls](https://learn.microsoft.com/en-us/azure/container-apps/managed-identity-image-pull)

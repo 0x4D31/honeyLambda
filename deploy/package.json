@@ -1,0 +1,24 @@
+{
+  "name": "honeylambda-deploy",
+  "private": true,
+  "version": "2.0.0-dev",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@pulumi/aws": "7.46.0",
+    "@pulumi/azure-native": "3.28.0",
+    "@pulumi/docker": "5.2.0",
+    "@pulumi/gcp": "9.37.0",
+    "@pulumi/pulumi": "3.263.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "~5.9.3"
+  }
+}

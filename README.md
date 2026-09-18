@@ -12,6 +12,7 @@ changing an existing deployment.
 - Custom status, content type, text or binary response, including a 1×1 pixel.
 - JSON events on stdout, Slack notifications and a generic JSON webhook.
 - One HTTP server for local use, VMs and container platforms.
+- One Pulumi workflow for AWS Lambda, Google Cloud Run and Azure Container Apps.
 - No Serverless Framework, database or threat-intelligence service required.
 
 A hit means the URL was fetched. Link scanners, preview bots and email image
@@ -86,15 +87,37 @@ notification leaves the decoy response unchanged. The cooldown limits attempts
 per token **per process**; every matched request is still recorded. Configure
 log collection and retention on your hosting platform.
 
+## Deploy
+
+With cloud authentication configured and `config.json` ready:
+
+```sh
+cd deploy
+npm ci
+pulumi login
+pulumi stack init aws-dev
+pulumi config set cloud aws
+pulumi config set region us-east-1
+pulumi up
+pulumi stack output endpoint
+```
+
+Choose `gcp` or `azure` and the corresponding region for those clouds; GCP also
+needs `projectId`. Install Go, Node.js and Pulumi; container targets also need
+Docker. The [deployment guide](docs/deployment.md) covers authentication, settings,
+notifications, token URL outputs, updates and removal. Local use needs only Go.
+
 ## Documentation
 
+- [Deploy on AWS, Cloud Run, Azure or a container host](docs/deployment.md)
 - [Configuration and event format](docs/configuration.md)
 - [Operating the receiver](docs/operations.md)
 - [Migrating from v1](docs/migration.md)
 - [v2 design, tradeoffs and release gates](docs/v2-design.md)
 
-Cloud packaging and provider-specific deployment instructions are the next PR
-in the v2 series; this core branch is directly runnable as an HTTP service.
+Cloud deployment uses the same service JSON on all three providers. Pulumi
+creates the supporting infrastructure and packages code/assets automatically.
+Live deployment, update and teardown tests remain release gates.
 
 ## Development
 
@@ -103,10 +126,10 @@ go test -race ./...
 go vet ./...
 ```
 
-The core uses the Go standard library. Tests exercise matching, binary/HEAD
-responses, source-address trust, request capture limits, notification failures
-and concurrent requests. No live cloud account or notification credentials are
-needed for these tests.
+The core uses the Go standard library; the AWS entry point adds `aws-lambda-go`.
+Tests exercise matching, binary/HEAD responses, source-address trust, request
+capture limits, notification failures and concurrent requests. No live cloud
+account or notification credentials are needed for these tests.
 
 ## License
 

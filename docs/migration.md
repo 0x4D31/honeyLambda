@@ -18,7 +18,7 @@ The original implementation remains in Git history at `55b4131`.
 | `alert.email` / `alert.sms` | Removed; route JSON webhook/events to email or SMS automation |
 | `threat-intel-lookup` / Cymon | Removed; optional enrichment downstream |
 | `configFile`, `s3Bucket`, `s3Key` | Removed; mount/package a config file and set `HONEY_CONFIG` |
-| `serverless.yml` | Removed; deploy the binary/container or use the AWS example in the cloud PR |
+| `serverless.yml` | Removed; deploy the binary/container or use the [AWS example](deployment.md#aws-lambda) |
 
 Old config files are rejected, not partially interpreted. Download an existing
 S3 config outside the application if needed, and check each token and asset.

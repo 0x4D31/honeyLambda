@@ -32,3 +32,44 @@ jobs:
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
             GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build -trimpath -o /tmp/honeylambda ./cmd/honeylambda
           done
+      - name: Package Lambda
+        run: make lambda
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and smoke test
+        run: |
+          docker build -t honeylambda:ci .
+          docker run -d --name honeylambda-ci --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges -p 127.0.0.1:18080:8080 honeylambda:ci
+          trap 'docker rm -f honeylambda-ci' EXIT
+          curl -fsS --retry 10 --retry-delay 1 --retry-connrefused \
+            'http://127.0.0.1:18080/v1/get-pass?user=jack' -o /tmp/pixel.png
+          cmp /tmp/pixel.png static/pixel.png
+          docker logs honeylambda-ci > /tmp/honey-events.jsonl
+          python3 -c 'import json; rows=[json.loads(s) for s in open("/tmp/honey-events.jsonl")]; assert any(r.get("token_id")=="secret-document" for r in rows)'
+          docker stop --time 20 honeylambda-ci
+          test "$(docker inspect --format='{{.State.ExitCode}}' honeylambda-ci)" = 0
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - run: node --version
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: deploy
+      - run: npm run check && npm test
+        working-directory: deploy

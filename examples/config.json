@@ -9,22 +9,29 @@
     {
       "id": "secret-document",
       "path": "/v1/get-pass",
-      "query": {"user": "jack"},
+      "query": {
+        "user": "jack"
+      },
       "note": "Example: URL embedded in secret.doc",
       "response": {
         "status": 200,
         "content_type": "image/png",
-        "body_file": "../static/pixel.png"
+        "body_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGP6zwAAAgcBApocMXEAAAAASUVORK5CYII="
       }
     },
     {
       "id": "login-breadcrumb",
       "path": "/v1/get-pass",
-      "query": {"page": "2"},
+      "query": {
+        "page": "2"
+      },
       "note": "Example: hidden link in login page"
     }
   ],
-  "alerts": {"timeout_ms": 2000, "cooldown_seconds": 60},
+  "alerts": {
+    "timeout_ms": 2000,
+    "cooldown_seconds": 60
+  },
   "capture_body_bytes": 0,
   "trusted_proxies": []
 }
