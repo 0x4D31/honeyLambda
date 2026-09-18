@@ -17,6 +17,7 @@ function plain(value: any): any {
 const resources: {type: string; name: string; inputs: any}[] = [];
 mock.method(childProcess, "execFileSync", (command: string, args: string[]) => {
     if (command !== "az" || args[0] !== "acr" || !args.includes("--expose-token")) throw new Error("Unexpected external command");
+    if (args[args.indexOf("--subscription") + 1] !== "subscription-id") throw new Error("Wrong Azure subscription");
     return JSON.stringify({accessToken: "test-token"});
 });
 pulumi.runtime.setMocks({
@@ -45,7 +46,7 @@ const settings: Settings = {cloud, region: "test-region", maxInstances: 3, confi
 const pkg = {directory: ".", service: {alerts: {}, tokens: []}};
 (async () => {
     await pulumi.runtime.runInPulumiStack(async () => {
-        const result = {aws: deployAWS, gcp: deployGCP, azure: deployAzure}[cloud](settings, pkg, {MY_NOTIFICATION: pulumi.secret("https://notifications.example/")});
+        const result = {aws: deployAWS, gcp: deployGCP, azure: deployAzure}[cloud](settings, pkg, {MY_NOTIFICATION: pulumi.secret(process.argv[3] ?? "https://notifications.example/"), HONEY_REMOTE_CONFIG_URL: pulumi.secret("https://config.example/config.json"), HONEY_REMOTE_REFRESH_SECONDS: "60", HONEY_REMOTE_TIMEOUT_MS: "2000"});
         return {endpoint: result.endpoint, logs: result.logs};
     });
     process.stdout.write(JSON.stringify(resources));

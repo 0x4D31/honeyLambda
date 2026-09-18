@@ -15,6 +15,8 @@ for (const cloud of ["aws", "gcp", "azure"]) {
             assert.equal(fn.runtime, "provided.al2023");
             assert.deepEqual(fn.architectures, ["arm64"]);
             assert.equal(fn.reservedConcurrentExecutions, 3);
+            assert.equal(fn.timeout, 20);
+            assert.equal(fn.environment.variables.HONEY_REMOTE_CONFIG_URL, "https://config.example/config.json");
             assert.equal(fn.environment.variables.HONEY_CONFIG, "config/config.json");
             assert.ok(fn.code);
             assert.equal(one("aws:lambda/functionUrl:FunctionUrl").authorizationType, "NONE");
@@ -32,6 +34,8 @@ for (const cloud of ["aws", "gcp", "azure"]) {
             if (cloud === "gcp") {
                 const service = one("gcp:cloudrunv2/service:Service");
                 assert.equal(service.deletionProtection, false);
+                assert.ok(service.template.containers[0].envs.some((e: any) => e.name === "HONEY_REMOTE_CONFIG_URL"));
+                assert.equal(one("gcp:artifactregistry/repository:Repository").cleanupPolicies, undefined);
                 assert.equal(service.template.scaling.minInstanceCount, 0);
                 assert.equal(service.template.scaling.maxInstanceCount, 3);
                 assert.equal(service.template.executionEnvironment, "EXECUTION_ENVIRONMENT_GEN2");
@@ -50,6 +54,9 @@ for (const cloud of ["aws", "gcp", "azure"]) {
                 assert.match(app.template.containers[0].image, /@sha256:/);
                 assert.equal(one("azure-native:containerregistry:Registry").adminUserEnabled, false);
                 assert.equal(app.identity.type, "UserAssigned");
+                const variables = app.template.containers[0].env;
+                assert.ok(variables.find((e: any) => e.name === "HONEY_REMOTE_CONFIG_URL").secretRef);
+                assert.match(variables.find((e: any) => e.name === "HONEY_DEPLOYMENT_REVISION").value, /^[a-f0-9]{24}$/);
                 assert.ok(app.configuration.registries[0].identity);
                 assert.equal(app.configuration.registries[0].passwordSecretRef, undefined);
                 assert.match(one("azure-native:authorization:RoleAssignment").roleDefinitionId, /7f951dda-4ed3-4680-a7ca-43fe172d538d$/);
@@ -57,3 +64,10 @@ for (const cloud of ["aws", "gcp", "azure"]) {
         }
     });
 }
+
+
+test("rotating only an Azure notification secret changes its container template", () => {
+    const graph = (value: string) => JSON.parse(execFileSync(process.execPath, ["--import", "tsx", "test/program.ts", "azure", value], {encoding: "utf8"}));
+    const template = (resources: any[]) => resources.find(r => r.type === "azure-native:app:ContainerApp").inputs.template;
+    assert.notDeepEqual(template(graph("https://notify.example/old")), template(graph("https://notify.example/new")));
+});

@@ -26,3 +26,16 @@ test("notification settings fail early when missing or unused", () => {
 test("token URLs preserve escaped paths and encode all query parameters", () => {
     assert.deepEqual(tokenURLs("https://receiver.example/", {alerts: {}, tokens: [{id: "doc", path: "/a/../%2F", query: {z: "a b", a: "&="}}]}), {doc: "https://receiver.example/a/../%2F?a=%26%3D&z=a+b"});
 });
+
+test("remote settings are explicit, bounded and mapped to all runtime names", async () => {
+    const {runtimeEnvironment} = await import("../src/settings");
+    const service = {alerts: {}, tokens: []};
+    assert.throws(() => runtimeEnvironment(service, config({configRefreshSeconds: "60"})), /require configURL/);
+    assert.throws(() => runtimeEnvironment(service, config({configURL: "https://example.org/config.json", configTimeoutMS: "9000"})), /between/);
+    const environment = runtimeEnvironment(service, config({configURL: "https://example.org/config.json", configToken: "example-token"}));
+    const resolved = await new Promise<Record<string, string>>(resolve => pulumi.output(environment).apply(value => { resolve(value); return value; }));
+    assert.deepEqual(resolved, {
+        HONEY_REMOTE_CONFIG_URL: "https://example.org/config.json", HONEY_REMOTE_CONFIG_TOKEN: "example-token",
+        HONEY_REMOTE_REFRESH_SECONDS: "60", HONEY_REMOTE_TIMEOUT_MS: "2000",
+    });
+});

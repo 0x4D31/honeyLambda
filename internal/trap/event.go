@@ -14,6 +14,7 @@ import (
 )
 
 type Event struct {
+	ConfigRevision         string      `json:"config_revision,omitempty"`
 	SchemaVersion          int         `json:"schema_version"`
 	ID                     string      `json:"id"`
 	Time                   time.Time   `json:"time"`

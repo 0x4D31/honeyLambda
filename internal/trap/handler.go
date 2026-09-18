@@ -17,6 +17,7 @@ import (
 
 type Handler struct {
 	config           *Config
+	revision         string
 	byPath           map[string][]*Token
 	events           *json.Encoder
 	log              *slog.Logger
@@ -36,7 +37,7 @@ func New(c *Config, events io.Writer, log *slog.Logger) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &Handler{config: c, byPath: make(map[string][]*Token), events: json.NewEncoder(events), log: log, notifiers: notifiers, lastNotification: make(map[string]time.Time)}
+	h := &Handler{config: c, revision: c.revision(), byPath: make(map[string][]*Token), events: json.NewEncoder(events), log: log, notifiers: notifiers, lastNotification: make(map[string]time.Time)}
 	for i := range c.Tokens {
 		t := &c.Tokens[i]
 		h.byPath[t.Path] = append(h.byPath[t.Path], t)
@@ -76,7 +77,9 @@ func (h *Handler) match(r *http.Request) *Token {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	response := &h.config.DefaultResponse
 	if token := h.match(r); token != nil {
-		if token.Response != nil {
+		if token.resolvedResponse != nil {
+			response = token.resolvedResponse
+		} else if token.Response != nil {
 			response = token.Response
 		}
 		h.record(r, token)
@@ -100,7 +103,8 @@ func (h *Handler) record(r *http.Request, token *Token) {
 		return
 	}
 	peer, source, provenance := h.config.source(r)
-	event := Event{SchemaVersion: 1, ID: id, Time: time.Now().UTC(), TokenID: token.ID, Note: token.Note, Request: RequestInfo{
+	now := time.Now()
+	event := Event{SchemaVersion: 1, ConfigRevision: h.revision, ID: id, Time: now.UTC(), TokenID: token.ID, Note: token.Note, Request: RequestInfo{
 		Method: bounded(r.Method, 32), Path: token.Path, Query: r.URL.RawQuery, Host: bounded(r.Host, 256), PeerIP: peer, SourceIP: source, SourceIPFrom: provenance,
 		UserAgent: bounded(r.UserAgent(), 512), ContentType: bounded(r.Header.Get("Content-Type"), 256),
 	}}
@@ -117,9 +121,9 @@ func (h *Handler) record(r *http.Request, token *Token) {
 	if len(h.notifiers) > 0 {
 		cooldown := time.Duration(*h.config.Alerts.CooldownSeconds) * time.Second
 		last, exists := h.lastNotification[token.ID]
-		event.NotificationSuppressed = exists && event.Time.Sub(last) < cooldown
+		event.NotificationSuppressed = exists && now.Sub(last) < cooldown
 		if !event.NotificationSuppressed {
-			h.lastNotification[token.ID] = event.Time
+			h.lastNotification[token.ID] = now
 		}
 	}
 	err = h.events.Encode(event)
@@ -130,7 +134,7 @@ func (h *Handler) record(r *http.Request, token *Token) {
 	if event.NotificationSuppressed || len(h.notifiers) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(h.config.Alerts.TimeoutMS)*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Duration(h.config.Alerts.TimeoutMS)*time.Millisecond)
 	defer cancel()
 	var wg sync.WaitGroup
 	for _, n := range h.notifiers {

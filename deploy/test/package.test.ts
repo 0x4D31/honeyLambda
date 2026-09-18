@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
 import {prepare} from "../src/package";
 
@@ -20,6 +21,10 @@ test("packages portable assets and an executable ARM64 Lambda bootstrap", () => 
         const binary = path.join(lambda.directory, "bootstrap");
         assert.notEqual(fs.statSync(binary).mode & 0o111, 0);
         assert.equal(fs.readFileSync(binary).readUInt16LE(18), 183); // ELF EM_AARCH64
+        const hash = () => createHash("sha256").update(fs.readFileSync(binary)).digest("hex");
+        const initial = hash();
+        prepare(settings, "test-packaging");
+        assert.equal(hash(), initial, "unchanged Go source produced a different binary");
         const container = prepare({...settings, cloud: "gcp"}, "test-packaging");
         created.push(container.directory);
         assert.ok(fs.existsSync(path.join(container.directory, "Dockerfile")));

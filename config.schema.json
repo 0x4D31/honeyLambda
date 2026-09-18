@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/0x4D31/honeyLambda/master/config.schema.json",
+  "title": "honeyLambda v2 service configuration",
+  "description": "Runtime validation additionally checks byte limits, HTTP paths, references, duplicate IDs/selectors, MIME types, CIDRs and response assets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "tokens"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 2
+    },
+    "default_response": {
+      "$ref": "#/$defs/response"
+    },
+    "responses": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"
+      },
+      "maxProperties": 1000,
+      "additionalProperties": {
+        "$ref": "#/$defs/response"
+      }
+    },
+    "tokens": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/token"
+      }
+    },
+    "alerts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "slack_url_env": {
+          "anyOf": [
+            {
+              "const": ""
+            },
+            {
+              "type": "string",
+              "pattern": "^(?!(PORT|HONEY_CONFIG|HONEY_DEPLOYMENT_REVISION)$)(?!HONEY_REMOTE_|AWS_|K_)[a-zA-Z_][a-zA-Z0-9_]*$"
+            }
+          ]
+        },
+        "webhook_url_env": {
+          "anyOf": [
+            {
+              "const": ""
+            },
+            {
+              "type": "string",
+              "pattern": "^(?!(PORT|HONEY_CONFIG|HONEY_DEPLOYMENT_REVISION)$)(?!HONEY_REMOTE_|AWS_|K_)[a-zA-Z_][a-zA-Z0-9_]*$"
+            }
+          ]
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        "cooldown_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        }
+      }
+    },
+    "capture_body_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65536
+    },
+    "trusted_proxies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "integer",
+          "anyOf": [
+            {
+              "const": 0
+            },
+            {
+              "minimum": 200,
+              "maximum": 599
+            }
+          ]
+        },
+        "content_type": {
+          "type": "string",
+          "pattern": "^[^\\r\\n]*$"
+        },
+        "body": {
+          "type": "string"
+        },
+        "body_base64": {
+          "type": "string",
+          "contentEncoding": "base64"
+        },
+        "body_file": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "body",
+              "body_base64"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "body",
+              "body_file"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "body_base64",
+              "body_file"
+            ]
+          }
+        }
+      ]
+    },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/(?!/)[^?#]*$",
+          "maxLength": 2048
+        },
+        "query": {
+          "type": "object",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "response": {
+          "$ref": "#/$defs/response"
+        },
+        "response_ref": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"
+        }
+      },
+      "not": {
+        "required": [
+          "response",
+          "response_ref"
+        ]
+      }
+    }
+  }
+}

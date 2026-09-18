@@ -7,7 +7,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 COPY cmd/honeylambda/ ./cmd/honeylambda/
 COPY internal/trap/ ./internal/trap/
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -buildvcs=false \
     -trimpath -ldflags="-s -w -X main.version=$VERSION" \
     -o /honeylambda ./cmd/honeylambda
 

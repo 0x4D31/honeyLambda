@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,9 +30,12 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: honeylambda <serve|check|bundle|token|version> [options]")
+		return errors.New("usage: honeylambda <init|serve|check|bundle|export|urls|token|version> [options]")
 	}
 	command := args[0]
+	if command == "init" {
+		return initConfig(args[1:])
+	}
 	if command == "version" || command == "token" {
 		if len(args) != 1 {
 			return errors.New("command takes no arguments")
@@ -46,13 +50,17 @@ func run(args []string) error {
 		}
 		return err
 	}
-	if command != "serve" && command != "check" && command != "bundle" {
+	if command != "serve" && command != "check" && command != "bundle" && command != "export" && command != "urls" {
 		return fmt.Errorf("unknown command %q", command)
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	configPath := flags.String("config", envOr("HONEY_CONFIG", "config.json"), "JSON configuration file")
 	var listen *string
 	var out *string
+	var endpoint *string
+	if command == "urls" {
+		endpoint = flags.String("endpoint", "", "deployed base URL")
+	}
 	if command == "bundle" {
 		out = flags.String("out", "", "new directory for portable config and response assets")
 	}
@@ -72,9 +80,24 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	if command == "urls" {
+		urls, err := tokenURLs(c, *endpoint)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(urls)
+	}
 	if command == "check" {
 		fmt.Fprintln(os.Stderr, "configuration valid")
 		return nil
+	}
+	if command == "export" {
+		data, err := c.Export()
+		if err != nil {
+			return err
+		}
+		_, err = os.Stdout.Write(append(data, '\n'))
+		return err
 	}
 	if command == "bundle" {
 		files, err := c.Bundle()
@@ -89,13 +112,18 @@ func run(args []string) error {
 		}
 		for name, data := range files {
 			if err := os.WriteFile(filepath.Join(*out, name), data, 0644); err != nil {
+				_ = os.RemoveAll(*out)
 				return err
 			}
 		}
 		return nil
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	h, err := trap.New(c, os.Stdout, log)
+	options, err := trap.RemoteOptionsFromEnv()
+	if err != nil {
+		return err
+	}
+	h, err := trap.NewReceiver(c, options, os.Stdout, log)
 	if err != nil {
 		return err
 	}
@@ -116,7 +144,7 @@ func run(args []string) error {
 	case err := <-done:
 		return err
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			_ = server.Close()
